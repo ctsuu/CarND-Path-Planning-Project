@@ -303,6 +303,31 @@ vector<vector<double>> getWorldPoints(double car_x, double car_y, double car_yaw
   return results;
 }
 
+// generate constant acceletion curve from 0 - certent speed
+vector<vector<double>> getAccCurve (double max_acc, double delta_t, double max_speed, double pwr, int steps){
+	vector<double> inc;
+	vector<double> travel;
+	vector<vector<double>> results;
+	double car_a = pwr*max_acc; 
+	double car_vel = 0;				
+	double car_travel = 0;
+	for (int i = 0; i < steps; i++){
+		//delta_t = 0.02;
+		car_vel += car_a * delta_t;
+		car_travel = car_vel*delta_t + 0.5*car_a*delta_t*delta_t;
+		if (car_travel > max_speed){
+			car_travel = max_speed;
+		}			
+			// cout << "t:"<< delta_t<<"\t "<<i<< "\t"<<car_vel*2.24<<"MPH, \t"<< car_travel<< " m/step"<<endl;
+			inc.push_back(double(i));
+			travel.push_back(car_travel);
+	}
+	results.push_back(inc);
+  	results.push_back(travel);
+
+  return results;
+}	
+ 
 
 int main() {
   uWS::Hub h;
@@ -422,6 +447,7 @@ int main() {
 		double car_v = car_speed* 0.447;  // need convert from MPH to m/s
 		double angle = deg2rad(car_yaw);
 
+		double delta_t = 0.02;
 		
 
 
@@ -501,7 +527,11 @@ int main() {
 		
 		
 		// accelaration curve from 0 to 50 MPH
-		double delta_t = 0;
+		double pwr=1.0; // 100% power, full acceleration
+
+		vector<vector<double>> acc_curve = getAccCurve (MAX_ACC, delta_t, inc_max, pwr, num_points);
+
+		/*
 		double init_v = 0;
 		double car_a = 1.0*MAX_ACC; 
 		double car_vel = 0;				
@@ -517,10 +547,17 @@ int main() {
 			t.push_back(double(i));
 			inc.push_back(car_travel);
 		}
- 
+ 		*/
 
 
-            	smooth_speed.set_points(t,inc);
+            	smooth_speed.set_points(acc_curve[0],acc_curve[1]);
+
+		// print out the smooth_speed curve
+		for (int i = 0; i< acc_curve[0].size(); i++){
+			cout<<acc_curve[0][i]<<","<<acc_curve[1][i]<<", \t"<<smooth_speed(double(i))<<endl;
+
+		}
+
 
 		double nextlwpx = 0.;
 		double nextlwpy;
@@ -554,7 +591,7 @@ int main() {
               		}
               		localxx = lx[i];
               		localxy = ly[i];
-			cout << lx[i]<< " \t dist_inc :" << dist<<"\t"<< ly[i]<<endl;
+			// cout << lx[i]<< " \t dist_inc :" << dist<<"\t"<< ly[i]<<endl;
 			
             	}
 
