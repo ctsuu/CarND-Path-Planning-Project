@@ -303,31 +303,57 @@ vector<vector<double>> getWorldPoints(double car_x, double car_y, double car_yaw
   return results;
 }
 
-// generate constant acceletion curve from 0 - certent speed
+// generate constant acceletion curve from 0 - certent speed, use dist_inc as speed 
 vector<vector<double>> getAccCurve (double max_acc, double delta_t, double max_speed, double pwr, int steps){
-	vector<double> inc;
-	vector<double> travel;
-	vector<vector<double>> results;
-	double car_a = pwr*max_acc; 
-	double car_vel = 0;				
-	double car_travel = 0;
-	for (int i = 0; i < steps; i++){
-		//delta_t = 0.02;
-		car_vel += car_a * delta_t;
-		car_travel = car_vel*delta_t + 0.5*car_a*delta_t*delta_t;
-		if (car_travel > max_speed){
-			car_travel = max_speed;
-		}			
-			// cout << "t:"<< delta_t<<"\t "<<i<< "\t"<<car_vel*2.24<<"MPH, \t"<< car_travel<< " m/step"<<endl;
-			inc.push_back(double(i));
-			travel.push_back(car_travel);
-	}
-	results.push_back(inc);
-  	results.push_back(travel);
+  vector<double> inc;
+  vector<double> travel;
+  vector<vector<double>> results;
+  double car_a = pwr*max_acc; 
+  double car_vel = 0;				
+  double car_travel = 0;
+  for (int i = 0; i < steps; i++){
+    car_vel += car_a * delta_t;
+    car_travel = car_vel*delta_t + 0.5*car_a*delta_t*delta_t;
+    if (car_travel > max_speed){
+	car_travel = max_speed;
+    }			
+    // cout << "t:"<< delta_t<<"\t "<<i<< "\t"<<car_vel*2.24<<"MPH, \t"<< car_travel<< " m/step"<<endl;
+    inc.push_back(double(i));
+    travel.push_back(car_travel);
+  }
+  results.push_back(inc);
+  results.push_back(travel);
 
   return results;
 }	
- 
+
+
+// generate constant brake G curve from speed 1 to speed 2, use dist_inc as speed
+vector<vector<double>> getBrakeCurve (double max_acc, double delta_t, double speed_1, double speed_2, double pwr, int steps){
+  vector<double> inc;
+  vector<double> travel;
+  vector<vector<double>> results;
+  double car_a = -pwr*max_acc; 
+  double car_vel = speed_1*112.3*0.447 ; // m/s			
+  double car_travel;
+
+  for (int i = 0; i < steps; i++){
+		
+    car_vel += car_a * delta_t;
+    car_travel = car_vel*delta_t+0.5*car_a*delta_t*delta_t;
+		
+    if (car_travel <= speed_2){
+	car_travel = speed_2;
+    }			
+    // cout << "t:"<< delta_t<<"\t "<<i<< "\t"<<car_vel*2.24<<"MPH, \t"<< car_travel<< " m/step"<<endl;
+    inc.push_back(double(i));
+    travel.push_back(car_travel);
+  }
+  results.push_back(inc);
+  results.push_back(travel);
+
+  return results;
+}	
 
 int main() {
   uWS::Hub h;
@@ -487,6 +513,9 @@ int main() {
           	tk::spline smooth_speed;
           	tk::spline smooth_local;
           	tk::spline smooth_path;
+
+          	tk::spline accel_curve;
+          	tk::spline brake_curve;
 		
 
 
@@ -530,34 +559,25 @@ int main() {
 		double pwr=1.0; // 100% power, full acceleration
 
 		vector<vector<double>> acc_curve = getAccCurve (MAX_ACC, delta_t, inc_max, pwr, num_points);
-
-		/*
-		double init_v = 0;
-		double car_a = 1.0*MAX_ACC; 
-		double car_vel = 0;				
-		double car_travel = 0;
-		for (int i = 0; i < num_points; i++){
-			delta_t = 0.02;
-			car_vel += car_a * delta_t;
-			car_travel = car_vel*delta_t + 0.5*car_a*delta_t*delta_t;
-			if (car_travel > inc_max){
-				car_travel = inc_max;
-			}			
-			cout << "t:"<< delta_t<<"\t "<<i<< "\t"<<car_vel<<"\t"<< car_travel<< endl;
-			t.push_back(double(i));
-			inc.push_back(car_travel);
-		}
- 		*/
+		smooth_speed.set_points(acc_curve[0],acc_curve[1]);
+            	accel_curve.set_points(acc_curve[0],acc_curve[1]);
 
 
-            	smooth_speed.set_points(acc_curve[0],acc_curve[1]);
+		// brake from 50 MPH to 20 MPH
+		double speed_1 = 0.445; // equal to 50 MPH
+		double speed_2 = 0.300; // equal to 30 MPH
+		double steps = 50; // finish the change in 1 second
+		vector<vector<double>> brake = getBrakeCurve (MAX_ACC, delta_t, speed_1, speed_2, pwr, steps);
 
-		// print out the smooth_speed curve
-		for (int i = 0; i< acc_curve[0].size(); i++){
-			cout<<acc_curve[0][i]<<","<<acc_curve[1][i]<<", \t"<<smooth_speed(double(i))<<endl;
+		brake_curve.set_points(brake[0], brake[1]);
+
+		
+		// print out the curve
+		for (int i = 0; i< brake[0].size(); i++){
+			cout<<brake[0][i]<<", \t"<<brake[1][i]<<", \t"<<brake_curve(double(i)+0.5)<<endl;
 
 		}
-
+		
 
 		double nextlwpx = 0.;
 		double nextlwpy;
