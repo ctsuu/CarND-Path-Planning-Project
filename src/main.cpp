@@ -14,9 +14,17 @@
 #include <map>
 #include <iterator>
 #include "spline.h"
+#include <cmath>
+#include "Eigen-3.3/Eigen/Dense"
+#include <iomanip>
+#include <random>
+
 
 
 using namespace std;
+using Eigen::MatrixXd;
+using Eigen::VectorXd;
+
 
 // for convenience
 using json = nlohmann::json;
@@ -39,49 +47,6 @@ string hasData(string s) {
     return s.substr(b1, b2 - b1 + 2);
   }
   return "";
-}
-
-// Reuse some code from term 2 projects 
-// Evaluate a polynomial.
-double polyeval(Eigen::VectorXd coeffs, double x) {
-  double result = 0.0;
-  for (int i = 0; i < coeffs.size(); i++) {
-    result += coeffs[i] * pow(x, i);
-  }
-  return result;
-}
-
-// Evaluate a polynomial derivative
-double polyderv(Eigen::VectorXd coeffs, double x) {
-  double result = 0.0;
-  for (int i = 1; i < coeffs.size(); i++) {
-    result += coeffs[i]*i*CppAD::pow(x, i-1);
-  }
-  return result;
-}
-
-// Fit a polynomial.
-// Adapted from
-// https://github.com/JuliaMath/Polynomials.jl/blob/master/src/Polynomials.jl#L676-L716
-Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals,
-                        int order) {
-  assert(xvals.size() == yvals.size());
-  assert(order >= 1 && order <= xvals.size() - 1);
-  Eigen::MatrixXd A(xvals.size(), order + 1);
-
-  for (int i = 0; i < xvals.size(); i++) {
-    A(i, 0) = 1.0;
-  }
-
-  for (int j = 0; j < xvals.size(); j++) {
-    for (int i = 0; i < order; i++) {
-      A(j, i + 1) = A(j, i) * xvals(j);
-    }
-  }
-
-  auto Q = A.householderQr();
-  auto result = Q.solve(yvals);
-  return result;
 }
 
 
@@ -126,9 +91,14 @@ int NextWaypoint(double x, double y, double theta, vector<double> maps_x, vector
 
 	double heading = atan2( (map_y-y),(map_x-x) );
 
+	// add new line
+	// double theta_pos = fmod(theta + (2*pi()),2*pi());     
+	// double heading_pos = fmod(heading + (2*pi()),2*pi());
+
 	double angle = abs(theta-heading);
 	cout << "map x: "<< map_x <<";"<<"Map_y : "<< map_y << endl;
-	if(angle > pi()/4)
+	// if(angle > pi()/4)
+	if(angle > pi()/2)
 	{
 		closestWaypoint++;
 	}
@@ -353,7 +323,123 @@ vector<vector<double>> getBrakeCurve (double max_acc, double delta_t, double spe
   results.push_back(travel);
 
   return results;
-}	
+}
+
+
+// Trajectory Generation
+vector<vector<double>> JMT(vector< double> start, vector <double> end, double T)
+{
+    /*
+    Calculate the Jerk Minimizing Trajectory that connects the initial state
+    to the final state in time T.
+
+    INPUTS
+
+    start - the vehicles start location given as a length three array
+        corresponding to initial values of [s, s_dot, s_double_dot]
+
+    end   - the desired end state for vehicle. Like "start" this is a
+        length three array.
+
+    T     - The duration, in seconds, over which this maneuver should occur.
+
+    OUTPUT 
+    an array of length 6, each value corresponding to a coefficent in the polynomial 
+    s(t) = a_0 + a_1 * t + a_2 * t**2 + a_3 * t**3 + a_4 * t**4 + a_5 * t**5
+
+    EXAMPLE
+
+    > JMT( [0, 10, 0], [10, 10, 0], 1)
+    [0.0, 10.0, 0.0, 0.0, 0.0, 0.0]
+    */
+    
+    MatrixXd A = MatrixXd(3, 3);
+	A << T*T*T, T*T*T*T, T*T*T*T*T,
+			    3*T*T, 4*T*T*T,5*T*T*T*T,
+			    6*T, 12*T*T, 20*T*T*T;
+		
+	MatrixXd B = MatrixXd(3,1);	    
+	B << end[0]-(start[0]+start[1]*T+.5*start[2]*T*T),
+			    end[1]-(start[1]+start[2]*T),
+			    end[2]-start[2];
+			    
+	MatrixXd Ai = A.inverse();
+	
+	MatrixXd C = Ai*B;
+	
+	vector <double> coeff = {start[0], start[1], .5*start[2]};
+
+	for(int i = 0; i < C.size(); i++){
+	    	coeff.push_back(C.data()[i]);
+	}
+
+	vector <double> cum_time;
+	vector <double> s_at_time; // 
+	vector<vector<double>> results;
+	double cum_t = 0;
+	for (int i = 0; i < T/0.02; i++){
+		cum_t += 0.02;
+		double s_t = coeff[0]+coeff[1]*cum_t + coeff[2]*cum_t*cum_t +coeff[3]*cum_t*cum_t*cum_t + coeff[4]*cum_t*cum_t*cum_t*cum_t + coeff[5]*cum_t*cum_t*cum_t*cum_t*cum_t;
+		cum_time.push_back(cum_t);
+		s_at_time.push_back(s_t);
+		//cout<<"cum time \t"<< cum_t<< "s_at_time" << s_t << endl;
+	}
+	results.push_back(cum_time);
+	results.push_back(s_at_time);
+
+    return results;
+    
+}
+
+// Produce perturbed goals
+vector<vector<double>> perturb_goal(vector< double> goal_s, vector <double> goal_d, double goal_t, int num_samples ){
+
+
+	std::default_random_engine gen;
+
+	// Uncertainty generators for s, d, t around goal mean
+	std::normal_distribution<double> ndist_s(goal_s[0], 15); // within typical 2 car length
+	std::normal_distribution<double> ndist_d(goal_d[0], 2); // within the typical 4m lane width 
+	std::normal_distribution<double> ndist_t(goal_t, 2); // within 2 second reaction time
+	
+	
+	//std::map<int, int> hist_s;
+	//std::map<int, int> hist_d;
+	//std::map<int, int> hist_t;
+
+
+	vector<double> new_goal_s;
+	vector<double> new_goal_d;
+	vector<double> new_goal_t;
+	vector<vector<double>> results;
+
+    	for(int n=0; n<num_samples; ++n) {
+        	//++hist_s[ndist_s(gen)];
+		//++hist_d[ndist_d(gen)];
+		//++hist_t[ndist_t(gen)];
+		new_goal_s.push_back(abs(ndist_s(gen))); // always generate forward path
+		new_goal_d.push_back(ndist_d(gen));
+		new_goal_t.push_back(abs(goal_t+ndist_t(gen))); // always generate future value 
+    	}
+
+	/*
+	for (int i=0; i< new_goal_s.size(); i++){
+        	cout <<i<<"\t"<<new_goal_s[i]<<"\t"<<new_goal_d[i]<<"\t"<<new_goal_t[i]<<endl;
+	}
+	
+	
+    	for(auto p : hist_d) {
+        	std::cout << std::fixed << std::setprecision(1) << std::setw(2)
+                  << p.first << ' ' << std::string(p.second/200, '*') << '\n';
+    	}
+	*/
+	results.push_back(new_goal_s);
+	results.push_back(new_goal_d);
+	results.push_back(new_goal_t);
+	return results;
+}
+
+		
 
 int main() {
   uWS::Hub h;
@@ -389,7 +475,19 @@ int main() {
 	
   int lane = 2; // 0 will be the inner lane, 2 will be the right lane
 
-  int num_samples = 10; // iteration to find best path
+
+  // double s;
+  // double v;
+  // double a;
+  double target_speed;
+  int lanes_available;
+  int goal_lane;
+  
+  string state; // car states: "CS", "KL", 
+  
+
+
+  int num_samples = 20; // iteration to find best path
   
   Eigen::VectorXd SIGMA_S(3); 
           SIGMA_S << 10.0 , 4.0 , 2.0 ; //S, S_dot, S_double_dot
@@ -442,7 +540,7 @@ int main() {
   out_log << "t,x,y,vd,xyd,nd,d,st" << endl;
 
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy,&lane,
-&ref_vel, &vx,&vy,&vd,&xyd,&nextd,&inc_max,&dist_inc,&out_log,&timestep,&stucktimer,&lanechange, &SIGMA_S, &SIGMA_D, & SIGMA_T, &MAX_JERK, &MAX_ACC, &EXPECTED_JERK_IN_ONE_SEC, &EXPECTED_ACC_IN_ONE_SEC, &SPEED_LIMIT, &VEHICLE_RADIUS, &prev_v](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+&ref_vel, &vx,&vy,&vd,&xyd,&nextd,&inc_max,&dist_inc,&out_log,&timestep,&stucktimer,&lanechange, &SIGMA_S, &SIGMA_D, & SIGMA_T, &MAX_JERK, &MAX_ACC, &EXPECTED_JERK_IN_ONE_SEC, &EXPECTED_ACC_IN_ONE_SEC, &SPEED_LIMIT, &VEHICLE_RADIUS, &prev_v, &target_speed, &lanes_available, &goal_lane, &state, &num_samples](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -512,8 +610,9 @@ int main() {
 		tk::spline smooth_lanes;
           	tk::spline smooth_speed;
           	tk::spline smooth_local;
-          	tk::spline smooth_path;
 
+
+          	tk::spline smooth_path;
           	tk::spline accel_curve;
           	tk::spline brake_curve;
 		
@@ -565,19 +664,52 @@ int main() {
 
 		// brake from 50 MPH to 20 MPH
 		double speed_1 = 0.445; // equal to 50 MPH
-		double speed_2 = 0.300; // equal to 30 MPH
-		double steps = 50; // finish the change in 1 second
+		double speed_2 = 0.200; // equal to 20 MPH
+		double steps = 80; // finish the change in 1.5 second
 		vector<vector<double>> brake = getBrakeCurve (MAX_ACC, delta_t, speed_1, speed_2, pwr, steps);
 
 		brake_curve.set_points(brake[0], brake[1]);
 
+		// car state include {s, s_dot, s_double_dot}
+		// it can also refer to {s, v, a}
+		//vector< double > start = {0.0, 10.0, 0.0}; // test 1
+		//vector< double > end = {10.0, 10.0, 0.0};  // test 1
+
+		vector< double > start = {0.0, 10.0, 0.0}; // test 2
+		vector< double > end = {40.0, 15, 10};  // test 2
+
+		//vector< double > start = {5, 10, 2}; // test 3
+		//vector< double > end = {-30, -20, -4};  // test 3
+
+		
+		vector<vector<double>> jmt = JMT(start, end, 3);
+		//cout << "JMT \t" << jmt[0] <<"\t"<<jmt[1]<<"\t"<<jmt[2]<<"\t"<<jmt[3]<<"\t"<<jmt[4]<<"\t"<<jmt[5]<<endl;
+
+		/*
+		// print out the curve
+		for (int i = 1; i<= jmt[0].size(); i++){
+			cout<<i<<"\t"<<jmt[0][i]<<", \t"<<jmt[1][i]<<"\t"<<jmt[1][i]-jmt[1][i-1]<<endl;
+
+		}
+		*/
+		
+		// generate perturbed goals
+		vector< double> goal_s = {30, 0, 0};
+		vector <double> goal_d = {10, 0, 0};
+		double goal_t = 2;
+
+		vector<vector<double>> new_goals = perturb_goal(goal_s, goal_d, goal_t, num_samples);
 		
 		// print out the curve
-		for (int i = 0; i< brake[0].size(); i++){
-			cout<<brake[0][i]<<", \t"<<brake[1][i]<<", \t"<<brake_curve(double(i)+0.5)<<endl;
+		cout<< "double check tracer: "<< endl;
+		for (int i = 0; i< new_goals[0].size(); i++){
+			
+			cout<<i<<"\t"<<new_goals[0][i]<<", \t"<<new_goals[1][i]<<", \t"<<new_goals[2][i]<<endl;
 
 		}
 		
+
+
 
 		double nextlwpx = 0.;
 		double nextlwpy;
