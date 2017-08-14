@@ -372,7 +372,7 @@ vector<vector<double>> JMT(vector< double> start, vector <double> end, double T)
 	for(int i = 0; i < C.size(); i++){
 	    	coeff.push_back(C.data()[i]);
 	}
-
+	// generate the curve
 	vector <double> cum_time;
 	vector <double> s_at_time; // 
 	vector<vector<double>> results;
@@ -439,7 +439,95 @@ vector<vector<double>> perturb_goal(vector< double> goal_s, vector <double> goal
 	return results;
 }
 
-		
+
+
+// Finds the best trajectory according to WEIGHTED_COST_FUNCTIONS (global).
+vector<vector<double>> PTG(vector<double> start_s, vector<double> start_d, int target_vehicle, vector<double>delta, double T, vector<vector<double>>predictions, int num_samples, double delta_t){
+   
+    /*	
+    arguments:
+     start_s - [s, s_dot, s_ddot]
+
+     start_d - [d, d_dot, d_ddot]
+
+     target_vehicle - id of leading vehicle (int) which can be used to retrieve
+       that vehicle from the "predictions" dictionary. This is the vehicle that 
+       we are setting our trajectory relative to.
+
+     delta - a length 6 array indicating the offset we are aiming for between us
+       and the target_vehicle. So if at time 5 the target vehicle will be at 
+       [100, 10, 0, 0, 0, 0] and delta is [-10, 0, 0, 4, 0, 0], then our goal 
+       state for t = 5 will be [90, 10, 0, 4, 0, 0]. This would correspond to a 
+       goal of "follow 10 meters behind and 4 meters to the right of target vehicle"
+
+     T - the desired time at which we will be at the goal (relative to now as t=0)
+
+     predictions - dictionary of {v_id : vehicle }. Each vehicle has a method 
+       vehicle.state_in(time) which returns a length 6 array giving that vehicle's
+       expected [s, s_dot, s_ddot, d, d_dot, d_ddot] state at that time.
+
+    return:
+     (best_s, best_d, best_t) where best_s are the 6 coefficients representing s(t)
+     best_d gives coefficients for d(t) and best_t gives duration associated w/ 
+     this trajectory.
+    */
+	
+	vector<double> target = predictions[target_vehicle];
+	// generate alternative goals
+
+	vector<vector<vector<double>>> all_goals;
+	double t_inc = T-4*delta_t;
+	vector<double> target_state;
+	target_state.reserve(target.size());
+	vector<vector<double>>s_curve;
+	vector<vector<double>>d_curve;
+	vector<double> goal_s;
+	vector<double> goal_d;
+
+	for (int i =0; i< target.size(); i++){
+		target_state.push_back(target[i]+delta[i]);
+	}
+	for( int i = 0; i< num_samples; i++){
+		goal_s = {target_state[0], target_state[1], target_state[2]}; 
+ 		goal_d = {target_state[3], target_state[4], target_state[5]}; 
+		vector<vector<double>> perturbed = perturb_goal(goal_s, goal_d, T, num_samples);
+		all_goals.push_back(perturbed);
+	}
+	
+	// find best trajectory
+	for (int i=0; i<all_goals.size(); i++){
+		// for each goal, get s_curve and d_curve
+		s_curve = JMT(start_s, goal_s, all_goals[i][2][i]);
+		d_curve = JMT(start_d, goal_d, all_goals[i][2][i]);
+
+	}
+	cout<<all_goals.size()<<endl;
+
+	
+	return s_curve;
+
+}
+
+
+// derivate function
+vector<double> differentiate(vector<double> coeffs){
+    /*
+    Calculates the derivative of a polynomial and returns
+    the corresponding coefficients.
+    
+    new_cos = []
+    for deg, prev_co in enumerate(coefficients[1:]):
+        new_cos.append((deg+1) * prev_co)
+        #print(new_cos)
+    return new_cos
+    */
+	
+    vector<double> s_dot;
+    for (int i =1; i< coeffs.size(); i++){
+      s_dot.push_back(coeffs[i]*i);
+    }
+    return s_dot;
+}
 
 int main() {
   uWS::Hub h;
@@ -708,6 +796,13 @@ int main() {
 
 		}
 		
+		vector<double> test = {1,1,1,1,1,1};
+		//vector<double> test = {1,2,3,4,5};
+       		vector<double> test_result = differentiate(test);
+                cout <<"s_dot: ";
+    		for (int i =0; i<test_result.size(); i++){
+        		cout << ", "<<test_result[i];
+    		}
 
 
 
