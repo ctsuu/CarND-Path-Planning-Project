@@ -566,11 +566,9 @@ double logistic(double x){
     return 2.0/(1+exp(-x))-1.0;
 }
 
-// Vehicle move with constant acceleration
-class Vehicle{
-  public:
+// Project Vehicle move with constant acceleration
 
-    vector<double> state_in(vector<double> start_state, double t){
+vector<double> state_in(vector<double> start_state, double t){
       vector<double> state;
       state = {
 	start_state[0]+(start_state[1]*t)+0.5*start_state[2]*t*t,
@@ -581,24 +579,72 @@ class Vehicle{
 	start_state[5]
 	};
       return state; 
+}
+
+// find closest distance in a trajectory to close by vehicle
+double nearest_approach(vector<vector<double>> traj, vector<double> cars){
+    // giving testing trajecory s_coeffs, d_coeffs, 
+    // any vehicle current state {s, s_dot, s_d_dot, d, d_dot, d_d_dot}, and duration T:
+    // output: the closest dist between the testing trajecory and other cars projected path. 
+
+    double closest = 999999;
+    vector<double>s_ = traj[0];
+    vector<double>d_ = traj[1];
+    vector<double>t_ = traj[2];
+    //s = to_equation(s_)
+    //d = to_equation(d_)
+    for(int i = 1; i < 100; i++){
+        double t = i / 100 * t_[0];
+        double cur_s = to_equation(s_, t); // s coordinate value at time t
+        double cur_d = to_equation(d_, t); // d coordinate value at time t
+
+	// giving other car's s and d value
+	vector<double> target = state_in(cars, t);
+        
+        double dist = sqrt(pow((cur_s-target[0]),2) + pow((cur_d-target[3]),2));
+        //cout<< dist<<"," ;
+        if (dist < closest){
+            closest = dist;
+        }
     }
-};
+    return closest;
+}
 
 
-//#endif 
+double nearest_approach_to_any_vehicle(vector<vector<double>> traj, vector<vector<double>>vehicles){
+    
+    // Calculates the closest distance to any vehicle during a trajectory.
+    
+    double closest = 999999;
+    for(int i = 0; i < vehicles.size(); i++){
+        double d = nearest_approach(traj,vehicles[i]);
+	cout << d <<",";
+        if (d < closest){
+            closest = d;
+        }
+
+    }
+    return closest;
+}
+
+
+
+
 
 int main() {
   uWS::Hub h;
 
-  struct Vehicle cars;
-  // initial start state, middle lane,  
-  vector<double> start_state = {10,0.445,0,6,0,0};
+  //struct Vehicle cars;
+
   
+  // initial start state, middle lane,  
+  //vector<double> start_state = {10,0.445,0,6,0,0};
+/*  
   vector<double> next_state = cars.state_in(start_state, 1);
   for (int i =0; i< next_state.size(); i++){
         cout<<next_state[i]<<",";
   }
-
+  */
 
 
   // Load up map values for waypoint's x,y,s and d normalized normal vectors
@@ -865,8 +911,8 @@ int main() {
 
 		}
 		
-		//vector<double> test = {1,1,1,1,1,1};
-		vector<double> test = {1,2,3,4,5};
+		vector<double> test = {1,1,1,1,1,1};
+		//vector<double> test = {1,2,3,4,5};
        		//vector<double> test_result = differentiate(test);
 		vector<double> test_result = differentiate(differentiate(test));
                 cout <<"s_dot: ";
@@ -879,7 +925,13 @@ int main() {
 		double log = logistic(ft);
 		cout << "logistic f(t) = " << log<< endl; 
 		
-
+		vector<vector<double>> test_traj = {{1,1,1,1,1,1},{1,1,1,1,1,1},{2}};
+		vector<double> test_car = {10,5,0,2,0,0};
+		vector<vector<double>> test_cars = {{10,5,0,2,0,0},{100,5,0,2,0,0},{200,5,0,6,0,0}};
+                //double shortest_dist = nearest_approach(test_traj, test_car);
+                double nearest =  nearest_approach_to_any_vehicle(test_traj,test_cars);
+		
+                cout <<"nearest = "<<nearest<< endl;
 
 
 
