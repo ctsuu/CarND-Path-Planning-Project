@@ -18,7 +18,8 @@
 #include "Eigen-3.3/Eigen/Dense"
 #include <iomanip>
 #include <random>
-
+//#ifndef VEHICLE_H
+//#define VEHICLE_H
 
 
 using namespace std;
@@ -529,8 +530,76 @@ vector<double> differentiate(vector<double> coeffs){
     return s_dot;
 }
 
+
+// rebuild polynormial equation
+double to_equation(vector<double> coeffs, double t){
+    /*
+    Takes the coefficients of a polynomial and creates a function of
+    time from them.
+    
+    def f(t):
+        total = 0.0
+        for i, c in enumerate(coefficients): 
+            total += c * t ** i
+        return total
+    return f
+    */
+
+	double results = 0;
+	for(int i = 0; i < coeffs.size(); i++){
+		results += coeffs[i]*pow(t, i);
+	}
+
+	return results;
+}
+
+// logistic function
+double logistic(double x){
+    /*
+    A function that returns a value between 0 and 1 for x in the 
+    range [0, infinity] and -1 to 1 for x in the range [-infinity, 0].
+
+    Useful for cost functions.
+    
+    return 2.0 / (1 + exp(-x)) - 1.0
+    */	
+    return 2.0/(1+exp(-x))-1.0;
+}
+
+// Vehicle move with constant acceleration
+class Vehicle{
+  public:
+
+    vector<double> state_in(vector<double> start_state, double t){
+      vector<double> state;
+      state = {
+	start_state[0]+(start_state[1]*t)+0.5*start_state[2]*t*t,
+	start_state[1]+start_state[2]*t,
+	start_state[2],
+	start_state[3]+(start_state[4]*t)+0.5*start_state[5]*t*t,
+	start_state[4]+start_state[5]*t,
+	start_state[5]
+	};
+      return state; 
+    }
+};
+
+
+//#endif 
+
 int main() {
   uWS::Hub h;
+
+  struct Vehicle cars;
+  // initial start state, middle lane,  
+  vector<double> start_state = {10,0.445,0,6,0,0};
+  
+  vector<double> next_state = cars.state_in(start_state, 1);
+  for (int i =0; i< next_state.size(); i++){
+        cout<<next_state[i]<<",";
+  }
+
+
 
   // Load up map values for waypoint's x,y,s and d normalized normal vectors
   vector<double> map_waypoints_x;
@@ -796,13 +865,21 @@ int main() {
 
 		}
 		
-		vector<double> test = {1,1,1,1,1,1};
-		//vector<double> test = {1,2,3,4,5};
-       		vector<double> test_result = differentiate(test);
+		//vector<double> test = {1,1,1,1,1,1};
+		vector<double> test = {1,2,3,4,5};
+       		//vector<double> test_result = differentiate(test);
+		vector<double> test_result = differentiate(differentiate(test));
                 cout <<"s_dot: ";
     		for (int i =0; i<test_result.size(); i++){
         		cout << ", "<<test_result[i];
     		}
+		double ft = to_equation(test, 2);
+		cout << "Polynormial f(t) = " << ft<< endl; 
+
+		double log = logistic(ft);
+		cout << "logistic f(t) = " << log<< endl; 
+		
+
 
 
 
