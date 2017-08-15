@@ -628,6 +628,17 @@ double nearest_approach_to_any_vehicle(vector<vector<double>> traj, vector<vecto
 }
 
 
+// add some cost functions
+
+double time_diff_cost(vector<vector<double>>traj, double T){
+    /*
+    Penalizes trajectories that span a duration which is longer or 
+    shorter than the duration requested.
+    */
+    double t = traj[2][0];
+    return logistic(float(abs(t-T)) / T);
+}
+
 
 
 
@@ -932,6 +943,12 @@ int main() {
                 double nearest =  nearest_approach_to_any_vehicle(test_traj,test_cars);
 		
                 cout <<"nearest = "<<nearest<< endl;
+
+		double t_diff_fast = time_diff_cost(test_traj, 1.5);
+		double t_diff_slow = time_diff_cost(test_traj, 2.5);
+		double t_diff_right = time_diff_cost(test_traj, 2.1);
+
+		cout << t_diff_fast << "\t" <<t_diff_slow<< "\t"<<t_diff_right<<endl; 
 
 
 
