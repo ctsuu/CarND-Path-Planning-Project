@@ -97,7 +97,7 @@ int NextWaypoint(double x, double y, double theta, vector<double> maps_x, vector
 	// double heading_pos = fmod(heading + (2*pi()),2*pi());
 
 	double angle = abs(theta-heading);
-	cout << "map x: "<< map_x <<";"<<"Map_y : "<< map_y << endl;
+	// cout << "map x: "<< map_x <<";\t"<<"Map_y : "<< map_y << endl;
 	// if(angle > pi()/4)
 	if(angle > pi()/2)
 	{
@@ -801,10 +801,59 @@ int main() {
 
           	// Sensor Fusion Data, a list of all other cars on the same side of the road.
           	auto sensor_fusion = j[1]["sensor_fusion"];
-                cout << sensor_fusion << endl;
+                //cout << sensor_fusion << endl;
 		// 
-		
+		vector<vector<double>> prediction;
+		/*
+		for (int i = 0; i < sensor_fusion.size(); i++) {
+			vector<double> car;
+			int sf_id = sensor_fusion[i][0]; 
+			double sf_x = sensor_fusion[i][1];  
+			double sf_y = sensor_fusion[i][2];  
+ 
+			double sf_s = sensor_fusion[i][5];  
+			double sf_d = sensor_fusion[i][6];  
+			double sf_vx = sensor_fusion[i][3];  
+			double sf_vy = sensor_fusion[i][4];
+			
+			double sf_xt1 = sf_x+(0.02*sf_vx); 
+			double sf_yt1 = sf_y+(0.02*sf_vy);
+			double sf_heading = atan2(sf_yt1-sf_y,sf_xt1-sf_x); 
+			vector<double> sf_frenet = getFrenet(sf_xt1, sf_yt1, sf_heading,map_waypoints_x, map_waypoints_y);  
+						
+			double sf_s_dot = (sf_frenet[0]-sf_s)/0.02;
+			double sf_d_dot = (sf_frenet[1]-sf_d)/0.02;
+			
+			car.push_back(sf_s); // s
+			car.push_back(sf_s_dot); // s_dot
+			car.push_back(double(0)); // s_d_dot
+			car.push_back(sf_d); // d
+			car.push_back(sf_d_dot); // d_dot
+			car.push_back(double(0)); // d_d_dot
+				
+			cout<<
+			sf_xt1 <<", \t"<<
+			sf_yt1 <<", \t"<<
+			sf_heading <<", \t"<<
+			angle <<", \t"<<
+			sf_frenet[0] <<", \t"<<
+			sf_frenet[1] <<", \t"<<	
+			car.size()<< endl;
+			//(sensor_fusion[i][0]) <<", \t"<< 
+			//(sensor_fusion[i][1]) <<", \t"<< 
+			//(sensor_fusion[i][2]) <<", \t"<< 	
+			//(sensor_fusion[i][5]) <<", \t"<< 
+			//(sensor_fusion[i][6]) <<", \t"<<  
+			//(sensor_fusion[i][3]) <<", \t"<<
+			//(sensor_fusion[i][4]) <<", \t"<<endl;
+			
+			prediction.push_back(car);
+		}
 
+		for(int i =0; i< prediction[0].size(); i++){
+			cout<< prediction[0][i]<<", \t";
+		}
+		*/
           	json msgJson;
 
 		//
@@ -841,6 +890,13 @@ int main() {
 		
 		int path_size = previous_path_x.size();
 		int prev_size = previous_path_x.size();
+		
+		//if(prev_size > 0){
+		//	car_s = end_path_s;
+		//}
+		// somehow it make the car run too fast
+
+
 		cout << "prev_path_size: " << prev_size << endl; 
 		cout << "car_x: "<< car_x <<" car_y: "<< car_y << " car_yaw: "<< car_yaw << " deg" << " car_yaw in rad: "<< angle << endl;
 		cout << " car_s: " << car_s <<" car_d: "<< car_d << endl; 
@@ -952,6 +1008,8 @@ int main() {
 
 
 
+
+
 		double nextlwpx = 0.;
 		double nextlwpy;
             	for (int i = 0; i<num_points; i++){
@@ -1004,6 +1062,8 @@ int main() {
 
 
 		bool too_close = false;
+		bool left_lane_clear = true;
+		bool right_lane_clear = true;
 		
 		
 
@@ -1011,33 +1071,112 @@ int main() {
 		for (int i = 0; i < sensor_fusion.size(); i++){
 			// find the d value 
 			float d = sensor_fusion[i][6];
-			if (d < (2+4*lane+2) && d > (2+ 4*lane -2)){
-				double vx = sensor_fusion[i][3];
-				double vy = sensor_fusion[i][4];
-				double check_speed = sqrt(vx*vx+vy*vy);
-				double check_car_s = sensor_fusion[i][5];
-				// simplified car_s prediction 
-				check_car_s += ((double)prev_size*0.02*vx); 
-				// buffer zoom set to 30m 
-				if((check_car_s > car_s) && ((check_car_s - car_s) < 30 )){
+
+			vector<double> car;
+			int sf_id = sensor_fusion[i][0]; 
+			double sf_x = sensor_fusion[i][1];  
+			double sf_y = sensor_fusion[i][2];  
+ 
+			double sf_s = sensor_fusion[i][5];  
+			double sf_d = sensor_fusion[i][6];  
+			double sf_vx = sensor_fusion[i][3];  
+			double sf_vy = sensor_fusion[i][4];
 			
+			double sf_xt1 = sf_x+(0.02*sf_vx); 
+			double sf_yt1 = sf_y+(0.02*sf_vy);
+			double sf_heading = atan2(sf_yt1-sf_y,sf_xt1-sf_x); 
+			vector<double> sf_frenet = getFrenet(sf_xt1, sf_yt1, sf_heading,map_waypoints_x, map_waypoints_y);  
+						
+			double sf_s_dot = (sf_frenet[0]-sf_s)/0.02;
+			double sf_d_dot = (sf_frenet[1]-sf_d)/0.02;
+
+			
+
+			car.push_back(sf_id); // id
+			car.push_back(sf_s); // s
+			car.push_back(sf_s_dot); // s_dot
+			car.push_back(double(0)); // s_d_dot
+			car.push_back(sf_d); // d
+			car.push_back(sf_d_dot); // d_dot
+			car.push_back(double(0)); // d_d_dot
+			
+
+			//double vx = sensor_fusion[i][3];
+			//double vy = sensor_fusion[i][4];
+			double check_speed = sqrt(sf_vx*sf_vx+sf_vy*sf_vy); // m/s
+			double check_car_s = sensor_fusion[i][5];
+			double check_car_d = sensor_fusion[i][6];
+			// lead time from any car, in seconds
+			if(check_speed !=0){
+				double check_lead = (check_car_s - car_s)/check_speed; 
+				car.push_back(check_lead); // lead time
+				// simplified car_s and car_d prediction 50 steps for 1 second 
+				check_car_s += (50*0.02*sf_s_dot); 
+				check_car_d += (50*0.02*sf_d_dot); 
+				cout <<"check speed \t" << check_speed*2.24 <<", \t"<<sf_s_dot*2.24<<"\t lead time: \t" <<check_lead<<", "<<sf_d<<", "<<check_car_d<<endl;
+			}
+
+			// safety buffer zone set to front 40m, back 40m
+			double safe_zone_front = 40.0;
+			double safe_zone_back = 40.0;
+ 
+			if(d < (2+4*lane+2) && d >(2+4*lane-2)){
+				// in the same lane
+				if((check_car_s > car_s) && ((check_car_s - car_s) < safe_zone_front )){
 					too_close = true;
-					if(lane >0){
-						lane -= 1;
-					}
+			
 				}
 			}
-		}
+		
 					
-		if (too_close){
-			
-			ref_vel = 22.4; // slow down
-			dist_inc = 0.3; 
-		// }else if(ref_vel < 49.5){
-		}else if(dist_inc <0.445){
-			ref_vel = 44.5; // speed up
-			dist_inc = 0.445;
+			if (too_close){
+				double keep_lane_speed = check_speed;
+				// prepare for lane change, shoulder check, match left lane speed, check gap to the front and behind.
+				
+				int left_lane = lane-1;
+				double left_lane_speed;
+				if (lane > 0 && left_lane_clear && d < (2+4*left_lane+2) && d > (2+4*left_lane-2)) {
+					if(((check_car_s > car_s) && ((check_car_s-car_s) < safe_zone_front)) || ((check_car_s < car_s) && ((car_s-check_car_s) < safe_zone_back))){
+						left_lane_clear = false;
+					}
+					if(check_speed<SPEED_LIMIT/2.24){
+						left_lane_speed = SPEED_LIMIT*0.9;
+					}
+					left_lane_speed = check_speed*2.24;
+					cout << "match left lane speed: "<<left_lane_speed <<endl;
+				}
+
+				// check right lane as well
+				int right_lane = lane+1;
+				double right_lane_speed;
+				if (lane < 2 && right_lane_clear && d < (2+4*right_lane+2) && d > (2+4*right_lane-2)) {
+					
+					if (((check_car_s > car_s) && ((check_car_s-car_s) < safe_zone_front)) || ((check_car_s < car_s) && ((car_s-check_car_s) < safe_zone_back))) {
+						right_lane_clear = false;
+					}
+					// prefer left lane pass first, not legal to pass on the right. Also when pass is over, return to the right lane.
+					if (!left_lane_clear){
+						right_lane_speed = check_speed*2.24;
+						cout << "match right lane speed: \t "<<right_lane_speed*2.24<< endl;
+					}
+				}
+			} // end of shoulder check
+
+			prediction.push_back(car);
+		}// end of sensor fusion check
+
+
+		/*
+		cout<<"sensor_fusion: " << endl;
+		for (int i = 0; i < prediction.size(); i++){
+			cout<<"sf : ";
+			for(int j =0; j< prediction[0].size(); j++){
+				cout<<prediction[i][j]<<", \t";
+			}
 		}
+		*/
+			
+		
 
 		vector<double> ptsx;
 		vector<double> ptsy;
@@ -1163,8 +1302,8 @@ int main() {
 
 	
 			next_x_vals.push_back(xy[0]);
-			// next_y_vals.push_back(xy[1]);
-			next_y_vals.push_back(next_y);
+			next_y_vals.push_back(xy[1]);
+			//next_y_vals.push_back(next_y);
           		
 			//lx.push_back(xy[0]);
 			//ly.push_back(xy[1]);
