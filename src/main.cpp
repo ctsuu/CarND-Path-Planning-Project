@@ -628,6 +628,7 @@ double nearest_approach_to_any_vehicle(vector<vector<double>> traj, vector<vecto
 }
 
 
+
 // add some cost functions
 
 double time_diff_cost(vector<vector<double>>traj, double T){
@@ -638,6 +639,51 @@ double time_diff_cost(vector<vector<double>>traj, double T){
     double t = traj[2][0];
     return logistic(float(abs(t-T)) / T);
 }
+
+
+double s_diff_cost(vector<vector<double>>traj, vector<double> target_state, vector<double> delta, vector<double> sigma){
+    /*
+    Penalizes trajectories whose s coordinate (and derivatives) 
+    differ from the goal.
+    */
+    vector<double > s_coeffs = traj[0]; 
+    double t = traj[2][0];
+    vector<double> actual = state_in(target_state, t); 
+    vector<double> actual_s; // with safety buffer zone
+    // add the delta state( safety buffer zone) 
+    for (int i =0; i< actual.size(); i++){
+	actual_s.push_back(target_state[i]+delta[i]);
+    }
+    
+    //double target_s = actual_state[0];
+    //double target_s_dot = actual_state[1];
+    //double target_s_d_dot = actual_state[2];
+
+    // the projected {s, s_dot, s_d_dot} at time t by given trajectory
+    vector<double> eval_s ;
+    vector<double> s_dot_coeffs;
+    vector<double> s_d_dot_coeffs;
+    s_dot_coeffs = differentiate(s_coeffs);
+    s_d_dot_coeffs = differentiate(s_dot_coeffs);
+
+    double s;
+    double s_dot;
+    double s_d_dot;
+
+    s = to_equation(s_coeffs,t);
+    s_dot = to_equation(s_dot_coeffs,t);
+    s_d_dot = to_equation(s_d_dot_coeffs,t);
+
+    eval_s = {s, s_dot, s_d_dot};
+    
+    double cost = 0;
+    for (int i = 0; i< eval_s.size(); i++){
+    	double diff = abs(actual_s[i]-eval_s[i]);
+        cost += logistic(diff/sigma[i]);
+    }
+    return cost;
+}
+
 
 
 //path planning
@@ -824,8 +870,10 @@ vector<double> target_state(vector<vector<double>> sensor_fusion, int my_lane, d
 		}
 	}
 	return results;
-
 }	
+
+
+
 
 
 int main() {
@@ -889,11 +937,9 @@ int main() {
 
   int num_samples = 20; // iteration to find best path
   
-  Eigen::VectorXd SIGMA_S(3); 
-          SIGMA_S << 10.0 , 4.0 , 2.0 ; //S, S_dot, S_double_dot
-  Eigen::VectorXd SIGMA_D(3);
-	  SIGMA_D << 1.0 , 1.0 , 1.0 ;  // D, D_dot, D_double_dot
-  double SIGMA_T;
+  vector<double> SIGMA_S ={10.0 , 4.0 , 2.0} ; //S, S_dot, S_double_dot
+  vector<double> SIGMA_D ={1.0 , 1.0 , 1.0} ;  // D, D_dot, D_double_dot
+  double SIGMA_T = 2.0;
   
 
   double MAX_JERK = 10; // m/s/s/s
@@ -1129,8 +1175,9 @@ int main() {
 		double log = logistic(ft);
 		cout << "logistic f(t) = " << log<< endl; 
 		
-		vector<vector<double>> test_traj = {{1,1,1,1,1,1},{1,1,1,1,1,1},{2}};
+		vector<vector<double>> test_traj = {{1,2,1,1,1,1},{1,1,1,1,1,1},{3}};
 		vector<double> test_car = {10,5,0,2,0,0};
+		vector<double> delta = {5, 0, 0, 0,0,0};
 		vector<vector<double>> test_cars = {{10,5,0,2,0,0},{100,5,0,2,0,0},{200,5,0,6,0,0}};
                 //double shortest_dist = nearest_approach(test_traj, test_car);
                 double nearest =  nearest_approach_to_any_vehicle(test_traj,test_cars);
@@ -1143,9 +1190,9 @@ int main() {
 
 		cout << t_diff_fast << "\t" <<t_diff_slow<< "\t"<<t_diff_right<<endl; 
 
+		double s_cost = s_diff_cost(test_traj, test_car, delta, SIGMA_S);
 
-
-
+		cout << "S_diff_cost "<< s_cost << endl;
 
 		double nextlwpx = 0.;
 		double nextlwpy;
