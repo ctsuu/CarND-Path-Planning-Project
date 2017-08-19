@@ -617,10 +617,10 @@ double nearest_approach_to_any_vehicle(vector<vector<double>> traj, vector<vecto
     
     double closest = 999999;
     for(int i = 0; i < vehicles.size(); i++){
-        double d = nearest_approach(traj,vehicles[i]);
-	cout << d <<",";
-        if (d < closest){
-            closest = d;
+        double dist = nearest_approach(traj,vehicles[i]);
+	cout << dist <<",";
+        if (dist < closest){
+            closest = dist;
         }
 
     }
@@ -683,6 +683,87 @@ double s_diff_cost(vector<vector<double>>traj, vector<double> target_state, vect
     }
     return cost;
 }
+
+double d_diff_cost(vector<vector<double>>traj, vector<double> target_state, vector<double> delta, vector<double> sigma){
+    /*
+    Penalizes trajectories whose d coordinate (and derivatives) 
+    differ from the goal.
+    */
+    vector<double > d_coeffs = traj[1]; 
+    double t = traj[2][0];
+    vector<double> actual_d = state_in(target_state, t); 
+
+    // the projected {d, d_dot, d_d_dot} at time t by given trajectory
+    vector<double> eval_d ;
+    vector<double> d_dot_coeffs;
+    vector<double> d_d_dot_coeffs;
+    d_dot_coeffs = differentiate(d_coeffs);
+    d_d_dot_coeffs = differentiate(d_dot_coeffs);
+
+    double d;
+    double d_dot;
+    double d_d_dot;
+
+    d = to_equation(d_coeffs,t);
+    d_dot = to_equation(d_dot_coeffs,t);
+    d_d_dot = to_equation(d_d_dot_coeffs,t);
+
+    eval_d = {d, d_dot, d_d_dot};
+    
+    double cost = 0;
+    for (int i = 0; i< eval_d.size(); i++){
+    	double diff = abs(actual_d[i]-eval_d[i]);
+        cost += logistic(diff/sigma[i]);
+    }
+    return cost;
+}
+
+
+double collision_cost(vector<vector<double>>traj, vector<vector<double>>vehicles, double vehicle_radius){
+    /*
+    Binary cost function which penalizes collisions.
+    */
+
+    double nearest;
+    nearest = nearest_approach_to_any_vehicle(traj, vehicles);
+    if (nearest < 2*vehicle_radius){
+	return 1.0;
+    } else {
+    	return 0.0;
+    }
+}
+
+
+double buffer_cost(vector<vector<double>>traj, vector<vector<double>>vehicles, double vehicle_radius){
+    /*
+    Penalizes getting close to other vehicles.
+    */
+
+    double nearest;
+    nearest = nearest_approach_to_any_vehicle(traj, vehicles);
+    return logistic(2*vehicle_radius/nearest);
+    
+}
+
+double efficiency_cost(vector<vector<double>>traj, vector<double> target_state){
+    /*
+    Rewards high average speeds.
+    */
+    vector<double > s_coeffs = traj[0]; 
+    double t = traj[2][0];
+    double s_t;
+    double traj_v; //average speed
+    vector<double> s_dot_coeffs;
+    s_dot_coeffs = differentiate(s_coeffs);
+    traj_v = to_equation(s_coeffs,t); // calculated s coordinate at time t based on traj s coeffs
+    
+    vector<double> actual = state_in(target_state, t); 
+    double actual_v = actual[1];
+
+    return logistic(2*float(actual_v - traj_v) / traj_v);
+}
+    
+
 
 
 
@@ -786,13 +867,13 @@ vector<double> target_state(vector<vector<double>> sensor_fusion, int my_lane, d
 		start_state.push_back(sf_d_dot);
 		start_state.push_back(0); // assume constant accelection 0
 
-		check_car_state_in = state_in(start_state, 1); // state after 1 sec
+		//check_car_state_in = state_in(start_state, 1); // state after 1 sec
 		
 
 		// double check_speed = sqrt(sf_vx*sf_vx+sf_vy*sf_vy); // m/s
-		check_car_s = check_car_state_in[0];
-		check_car_d = check_car_state_in[3];
-		self_car_s = sf_s + sf_s_dot*1;	
+		//check_car_s = check_car_state_in[0];
+		//check_car_d = check_car_state_in[3];
+		//self_car_s = sf_s + sf_s_dot*1;	
 		
 		// lead time from any car, in seconds
 					
@@ -1175,9 +1256,9 @@ int main() {
 		double log = logistic(ft);
 		cout << "logistic f(t) = " << log<< endl; 
 		
-		vector<vector<double>> test_traj = {{1,2,1,1,1,1},{1,1,1,1,1,1},{3}};
+		vector<vector<double>> test_traj = {{1,2,5,10,1,1},{1,10,1,1,1,1},{1}};
 		vector<double> test_car = {10,5,0,2,0,0};
-		vector<double> delta = {5, 0, 0, 0,0,0};
+		vector<double> delta = {0, 0, 0, 1,0,0};
 		vector<vector<double>> test_cars = {{10,5,0,2,0,0},{100,5,0,2,0,0},{200,5,0,6,0,0}};
                 //double shortest_dist = nearest_approach(test_traj, test_car);
                 double nearest =  nearest_approach_to_any_vehicle(test_traj,test_cars);
@@ -1193,6 +1274,21 @@ int main() {
 		double s_cost = s_diff_cost(test_traj, test_car, delta, SIGMA_S);
 
 		cout << "S_diff_cost "<< s_cost << endl;
+
+		double d_cost = d_diff_cost(test_traj, test_car, delta, SIGMA_D);
+
+		cout << "d_diff_cost "<< d_cost << endl;
+
+
+		double collision = collision_cost(test_traj, test_cars, VEHICLE_RADIUS);
+		cout << "collision cost " << collision << endl;
+
+		double buffer = buffer_cost(test_traj, test_cars, VEHICLE_RADIUS);
+		cout << "buffer cost " << buffer << endl;
+
+		double efficiency = efficiency_cost(test_traj, test_car);
+		cout << "efficiency cost " << efficiency << endl;
+		
 
 		double nextlwpx = 0.;
 		double nextlwpy;
