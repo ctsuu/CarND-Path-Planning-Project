@@ -566,7 +566,7 @@ double logistic(double x){
     return 2.0/(1+exp(-x))-1.0;
 }
 
-// Project Vehicle move with constant acceleration
+// Project Vehicle move in time t, constant speed
 
 vector<double> state_in(vector<double> start_state, double t){
       vector<double> state;
@@ -588,8 +588,8 @@ double nearest_approach(vector<vector<double>> traj, vector<double> cars){
     // output: the closest dist between the testing trajecory and other cars projected path. 
 
     double closest = 999999;
-    vector<double>s_ = traj[0];
-    vector<double>d_ = traj[1];
+    vector<double>s_ = traj[0]; // 6 elements
+    vector<double>d_ = traj[1]; // 6 elements
     vector<double>t_ = traj[2];
     //s = to_equation(s_)
     //d = to_equation(d_)
@@ -640,6 +640,192 @@ double time_diff_cost(vector<vector<double>>traj, double T){
 }
 
 
+//path planning
+
+vector<double> target_state(vector<vector<double>> sensor_fusion, int my_lane, double car_v, double car_s, double car_d, vector<double> map_waypoints_x, vector<double> map_waypoints_y){
+	/* Given sensor fusion prediction, in format{ sf_id, sf_s, sf_s_dot, s_d_dot, sf_d, sf_d_dot, d_d_dot, lead time, sf_lane}
+	Return Target position in next few seconds.
+	Format:{s, s_dot, s_d_dot, d, d_dot, d_d_dot, T} for JMT input. 
+	*/
+
+	vector<vector<double>>same_lane;
+	vector<double> target_time;
+	vector<double> dummy_car; 
+	int sf_id;
+	double sf_x; 
+	double sf_y;
+	double sf_vx;
+	double sf_vy;
+	double sf_s;
+	double sf_s_dot;
+	double sf_s_d_dot = 0; 
+	double sf_d;
+	double sf_d_dot;
+	double sf_d_d_dot = 0;  
+
+	
+	double target_s; // car lead s
+	double target_s_dot; // car lead s_dot
+	double target_s_d_dot; // car lead s_d_dot
+	double target_d; // car lead d
+	double target_d_dot; // car lead d_dot
+	double target_d_d_dot; // car lead d_d_dot
+	double target_t = 2.5; // initial lane following gap in sec
+	int target_lane = my_lane; // initial lane following
+	int target_id; // car id
+
+	double check_car_s; 
+	double check_car_d;
+	double self_car_s;
+
+	vector<double> start_state;
+	
+	vector<double> check_car_state_in;
+
+	double lead_s; // in meter
+	double lead_t; // in second
+
+	int sf_lane;
+
+	bool left_lane_clear = true;
+	bool right_lane_clear = true;
+	bool too_close = false;
+	bool lane_keep = true;
+	bool prepare_left_lane_change = false;
+	bool prepare_right_lane_change = false;
+
+	// for the car in my lane, check the following time, unit in second 
+	double front_safety_gap = 2.0;   
+	double back_safety_gap = 2.0; 
+	double following_gap = 2.0; // for curise following 
+
+	std::map<double, double> lane_map0;
+	std::map<double, double> lane_map1;
+	std::map<double, double> lane_map2;
+
+	vector<double> lane1;
+        vector<double> lane2;
+        vector<double> lane3;
+        vector<vector<double>> lanes;
+	lanes.push_back(lane1);
+        lanes.push_back(lane2);
+        lanes.push_back(lane3);
+	vector<double> available_lane;
+	vector<double> results;
+
+
+	// if target car is too far, create a dummy car in close range, such as 3-5 seconds
+	
+	for (int i = 0; i < sensor_fusion.size(); i++){
+		sf_id = sensor_fusion[i][0];
+		sf_x = sensor_fusion[i][1];
+		sf_y = sensor_fusion[i][2];
+		sf_vx = sensor_fusion[i][3];
+		sf_vy = sensor_fusion[i][4];
+		sf_s = sensor_fusion[i][5];
+		sf_d = sensor_fusion[i][6];
+		
+		double sf_xt1 = sf_x+(0.02*sf_vx); 
+		double sf_yt1 = sf_y+(0.02*sf_vy);
+		double sf_heading = atan2(sf_yt1-sf_y,sf_xt1-sf_x); 
+		vector<double> sf_frenet = getFrenet(sf_xt1, sf_yt1, sf_heading,map_waypoints_x, map_waypoints_y);  
+					
+		sf_s_dot = (sf_frenet[0]-sf_s)/0.02;
+		sf_d_dot = (sf_frenet[1]-sf_d)/0.02;
+		
+		start_state.push_back(sf_s);
+		start_state.push_back(sf_s_dot);
+		start_state.push_back(0);  // assume constant accelection 0
+		start_state.push_back(sf_d);
+		start_state.push_back(sf_d_dot);
+		start_state.push_back(0); // assume constant accelection 0
+
+		check_car_state_in = state_in(start_state, 1); // state after 1 sec
+		
+
+		// double check_speed = sqrt(sf_vx*sf_vx+sf_vy*sf_vy); // m/s
+		check_car_s = check_car_state_in[0];
+		check_car_d = check_car_state_in[3];
+		self_car_s = sf_s + sf_s_dot*1;	
+		
+		// lead time from any car, in seconds
+					
+		// simply projected car_s and car_d 50 steps for 1 second 
+		//check_car_s += (50*0.02*sf_s_dot); 
+		//check_car_d += (50*0.02*sf_d_dot); 
+		//lead_s = check_car_s - self_car_s; // in meter
+		lead_s = sf_s - car_s; // in meter
+		lead_t = lead_s/car_v; // in seconds
+		//sf_lane = int(round(sf_d-2)/4);
+
+		//lanes[sf_lane].push_back(sf_s);
+		//lanes[sf_lane].push_back(lead_t);
+	
+	
+	
+		for (int i =0; i < 3; i++){
+	
+		
+			if (sf_d < (2+4*i+2) && sf_d > (2+4*i-2)) {
+				//lanes[i].push_back(sf_s);
+				lanes[i].push_back(lead_t);
+			}
+		}
+	
+	}
+
+	// find closest car, and open lanes
+	for (int i =0; i < lanes.size(); i++){
+		cout << "lane"<<i<<": ";
+		double closest_car = 9999;
+		for (int j =0; j < lanes[i].size(); j++){
+			//cout <<lanes[i][j]<<", ";
+			if( abs(lanes[i][j])<closest_car){
+				closest_car = abs(lanes[i][j]);
+			}
+		}
+		cout <<"closest car" << closest_car<< ", "; 
+		if(closest_car > following_gap){
+			cout<<"lane open"<<endl;
+			//left_lane_clear = false;
+			//available_lane.push_back(i);
+			target_d = 2+4*i;
+			
+			target_s_dot = car_v;
+			target_t = closest_car*0.9;
+			target_s = car_s + car_v*target_t;
+
+			results.push_back(target_s);
+			results.push_back(target_s_dot);
+			results.push_back(0);
+			results.push_back(target_d);
+			results.push_back(0); // target_d_dot
+			results.push_back(0); // target_d_d_dot
+			results.push_back(target_t);
+			//return results;
+			
+		} else{
+			cout << "too close, keep lane " << endl;
+			too_close = true;
+			target_d = 2+4*my_lane;
+			target_s_dot = car_v*0.6; //slow down
+			target_t = closest_car*0.8;
+			target_s = car_s + car_v*target_t-15; 
+
+
+			results.push_back(target_s);
+			results.push_back(target_s_dot);
+			results.push_back(0);
+			results.push_back(target_d);
+			results.push_back(0); // target_d_dot
+			results.push_back(0); // target_d_d_dot
+			results.push_back(target_t);
+			return results;
+		}
+	}
+	return results;
+
+}	
 
 
 int main() {
@@ -804,57 +990,8 @@ int main() {
                 //cout << sensor_fusion << endl;
 		// 
 		vector<vector<double>> prediction;
-		/*
-		for (int i = 0; i < sensor_fusion.size(); i++) {
-			vector<double> car;
-			int sf_id = sensor_fusion[i][0]; 
-			double sf_x = sensor_fusion[i][1];  
-			double sf_y = sensor_fusion[i][2];  
- 
-			double sf_s = sensor_fusion[i][5];  
-			double sf_d = sensor_fusion[i][6];  
-			double sf_vx = sensor_fusion[i][3];  
-			double sf_vy = sensor_fusion[i][4];
-			
-			double sf_xt1 = sf_x+(0.02*sf_vx); 
-			double sf_yt1 = sf_y+(0.02*sf_vy);
-			double sf_heading = atan2(sf_yt1-sf_y,sf_xt1-sf_x); 
-			vector<double> sf_frenet = getFrenet(sf_xt1, sf_yt1, sf_heading,map_waypoints_x, map_waypoints_y);  
-						
-			double sf_s_dot = (sf_frenet[0]-sf_s)/0.02;
-			double sf_d_dot = (sf_frenet[1]-sf_d)/0.02;
-			
-			car.push_back(sf_s); // s
-			car.push_back(sf_s_dot); // s_dot
-			car.push_back(double(0)); // s_d_dot
-			car.push_back(sf_d); // d
-			car.push_back(sf_d_dot); // d_dot
-			car.push_back(double(0)); // d_d_dot
-				
-			cout<<
-			sf_xt1 <<", \t"<<
-			sf_yt1 <<", \t"<<
-			sf_heading <<", \t"<<
-			angle <<", \t"<<
-			sf_frenet[0] <<", \t"<<
-			sf_frenet[1] <<", \t"<<	
-			car.size()<< endl;
-			//(sensor_fusion[i][0]) <<", \t"<< 
-			//(sensor_fusion[i][1]) <<", \t"<< 
-			//(sensor_fusion[i][2]) <<", \t"<< 	
-			//(sensor_fusion[i][5]) <<", \t"<< 
-			//(sensor_fusion[i][6]) <<", \t"<<  
-			//(sensor_fusion[i][3]) <<", \t"<<
-			//(sensor_fusion[i][4]) <<", \t"<<endl;
-			
-			prediction.push_back(car);
-		}
 
-		for(int i =0; i< prediction[0].size(); i++){
-			cout<< prediction[0][i]<<", \t";
-		}
-		*/
-          	json msgJson;
+        	json msgJson;
 
 		//
 
@@ -969,7 +1106,7 @@ int main() {
 		double goal_t = 2;
 
 		vector<vector<double>> new_goals = perturb_goal(goal_s, goal_d, goal_t, num_samples);
-		
+		/*
 		// print out the curve
 		cout<< "double check tracer: "<< endl;
 		for (int i = 0; i< new_goals[0].size(); i++){
@@ -977,7 +1114,7 @@ int main() {
 			cout<<i<<"\t"<<new_goals[0][i]<<", \t"<<new_goals[1][i]<<", \t"<<new_goals[2][i]<<endl;
 
 		}
-		
+		*/
 		vector<double> test = {1,1,1,1,1,1};
 		//vector<double> test = {1,2,3,4,5};
        		//vector<double> test_result = differentiate(test);
@@ -1064,7 +1201,7 @@ int main() {
 		bool too_close = false;
 		bool left_lane_clear = true;
 		bool right_lane_clear = true;
-		
+		bool sensor_fusion_pred = false;
 		
 
 		// speed control, avoid front end collision 
@@ -1090,35 +1227,42 @@ int main() {
 			double sf_s_dot = (sf_frenet[0]-sf_s)/0.02;
 			double sf_d_dot = (sf_frenet[1]-sf_d)/0.02;
 
-			
-
-			car.push_back(sf_id); // id
-			car.push_back(sf_s); // s
-			car.push_back(sf_s_dot); // s_dot
-			car.push_back(double(0)); // s_d_dot
-			car.push_back(sf_d); // d
-			car.push_back(sf_d_dot); // d_dot
-			car.push_back(double(0)); // d_d_dot
-			
-
-			//double vx = sensor_fusion[i][3];
-			//double vy = sensor_fusion[i][4];
 			double check_speed = sqrt(sf_vx*sf_vx+sf_vy*sf_vy); // m/s
 			double check_car_s = sensor_fusion[i][5];
 			double check_car_d = sensor_fusion[i][6];
+			
+			//double diff_v = (sf_s_dot-car_v);
 			// lead time from any car, in seconds
-			if(check_speed !=0){
-				double check_lead = (check_car_s - car_s)/check_speed; 
-				car.push_back(check_lead); // lead time
+			if(car_v != 0 ){
+				
 				// simplified car_s and car_d prediction 50 steps for 1 second 
 				check_car_s += (50*0.02*sf_s_dot); 
 				check_car_d += (50*0.02*sf_d_dot); 
-				cout <<"check speed \t" << check_speed*2.24 <<", \t"<<sf_s_dot*2.24<<"\t lead time: \t" <<check_lead<<", "<<sf_d<<", "<<check_car_d<<endl;
-			}
+				double lead_s = check_car_s - car_s; // in meter
+				double check_lead = lead_s/car_v; // in seconds
+				int sf_lane = round(round(check_car_d-2)/4);
+				if(abs(sf_lane) <=2){ 
+					car.push_back(sf_id); // id
+					car.push_back(sf_s); // s
+					car.push_back(sf_s_dot); // s_dot
+					car.push_back(double(0)); // s_d_dot
+					car.push_back(sf_d); // d
+					car.push_back(sf_d_dot); // d_dot
+					car.push_back(double(0)); // d_d_dot
+					car.push_back(check_lead); // lead time
+					car.push_back(sf_lane); // lane position
+					//cout <<"check speed \t" <<sf_s_dot*2.24 <<",\t lead_s: \t"<<lead_s<< ",\t lead time: \t"<<check_lead<<", \t car lane: "<<sf_lane<<", \t"<<check_car_d<<endl;
+				}
+			} 
+			//else{
+				//car.push_back(9999); // lead time
+			//}
+
 
 			// safety buffer zone set to front 40m, back 40m
-			double safe_zone_front = 40.0;
-			double safe_zone_back = 40.0;
+			double safe_zone_front = 40.0; // in meter
+			double safe_zone_back = 40.0; //in meter
+			double safe_zone = 2.0; //in seconds
  
 			if(d < (2+4*lane+2) && d >(2+4*lane-2)){
 				// in the same lane
@@ -1163,20 +1307,30 @@ int main() {
 			} // end of shoulder check
 
 			prediction.push_back(car);
+			sensor_fusion_pred = true;
 		}// end of sensor fusion check
 
 
-		/*
-		cout<<"sensor_fusion: " << endl;
-		for (int i = 0; i < prediction.size(); i++){
-			cout<<"sf : ";
-			for(int j =0; j< prediction[0].size(); j++){
-				cout<<prediction[i][j]<<", \t";
-			}
-		}
-		*/
-			
 		
+
+		//path planning
+
+
+		vector<vector<double>>same_lane;
+		vector<vector<double>> test_p = {{0,100,10,0,2,1,0,2,1},{1,200,10,0,2,1,0,2,1}};
+		vector<double> t_state;
+		if(car_v != 0 ){
+			t_state = target_state(sensor_fusion, lane, car_v, car_s, car_d, map_waypoints_x, map_waypoints_y);
+		}
+
+		// print out
+		cout <<"target state and time: ";
+		for (int i=0; i < t_state.size(); i++){
+		
+			cout<< t_state[i]<<", ";
+			
+		}
+
 
 		vector<double> ptsx;
 		vector<double> ptsy;
