@@ -510,6 +510,15 @@ vector<vector<double>> PTG(vector<double> start_s, vector<double> start_d, int t
 }
 
 
+// calculate total weighted cost
+// Weight cost function order: time_diff_cost, s_diff_cost, d_diff_cost, efficiency_cost, max_jerk_cost, total_jerk_cost, collision_cost, buffer_cost, max_accel_cost, total_accel_cost)
+vector<double> WEIGHTED_COST_FUNC = {0.5, 0.61, 0.5, 0.5, 1.0, 1.0, 0.51, 0.145, 0.131, 0.1};
+
+
+
+// double calculate_cost
+
+
 // derivate function
 vector<double> differentiate(vector<double> coeffs){
     /*
@@ -763,7 +772,124 @@ double efficiency_cost(vector<vector<double>>traj, vector<double> target_state){
     return logistic(2*float(actual_v - traj_v) / traj_v);
 }
     
+double total_accel_cost(vector<vector<double>>traj, vector<double> target_state, double expected_acc){
+    vector<double> s_coeffs = traj[0];
+    vector<double> d_coeffs = traj[1];
+    double t = traj[2][0];
 
+    vector<double> s_dot_coeffs;
+    vector<double> s_d_dot_coeffs;
+    s_dot_coeffs = differentiate(s_coeffs);
+    s_d_dot_coeffs = differentiate(s_dot_coeffs);
+
+    double a;
+    a = to_equation(s_d_dot_coeffs, t);
+    cout <<"accelection a " << a << endl;
+    double total_acc = 0;
+    double dt = t/100;
+    double acc;
+    double acc_per_sec;
+    for (int i = 0; i< 100; i++){
+        double time_t = t*i;
+	acc = to_equation(s_d_dot_coeffs, time_t);
+        total_acc += abs(acc*dt);
+    }
+    acc_per_sec = total_acc/t;
+    cout <<"accelection acc" << acc << endl;
+    return logistic(acc_per_sec/expected_acc);
+}
+
+double max_accel_cost(vector<vector<double>>traj, vector<double> target_state, double MAX_ACC){
+    vector<double> s_coeffs = traj[0];
+    vector<double> d_coeffs = traj[1];
+    double t = traj[2][0];
+
+    vector<double> s_dot_coeffs;
+    vector<double> s_d_dot_coeffs;
+    s_dot_coeffs = differentiate(s_coeffs);
+    s_d_dot_coeffs = differentiate(s_dot_coeffs);
+
+    double a;
+    a = to_equation(s_d_dot_coeffs, t);
+    cout <<"accelection a " << a << endl;
+    double max_acc = 0;
+    double dt = t/100;
+    double acc;
+    
+    for (int i = 0; i< 100; i++){
+        double time_t = t*i;
+	acc = to_equation(s_d_dot_coeffs, time_t);
+        if(abs(acc)>max_acc){
+		max_acc = abs(acc);
+	}
+	if(max_acc > MAX_ACC){
+		return 1;
+	} else {
+		return 0;
+	}
+    }
+}
+
+
+double max_jerk_cost(vector<vector<double>>traj, vector<double> target_state, double MAX_JERK){
+    vector<double> s_coeffs = traj[0];
+    vector<double> d_coeffs = traj[1];
+    double t = traj[2][0];
+
+    vector<double> s_dot_coeffs;
+    vector<double> s_d_dot_coeffs;
+    vector<double> jerk_coeffs;
+    s_dot_coeffs = differentiate(s_coeffs);
+    s_d_dot_coeffs = differentiate(s_dot_coeffs);
+    jerk_coeffs = differentiate(s_d_dot_coeffs);
+
+    double max_jerk = 0;
+    double dt = t/100;
+    double jerk;
+    for (int i = 0; i< 100; i++){
+        double time_t = t*i;
+	jerk = to_equation(jerk_coeffs, time_t);
+        if(abs(jerk)>max_jerk){
+		max_jerk = abs(jerk);
+	}
+	cout <<"max_jerk "<<max_jerk <<endl;
+	if(max_jerk > MAX_JERK){
+		return 1;
+	} else {
+		return 0;
+	}
+    }
+}
+
+
+double total_jerk_cost(vector<vector<double>>traj, vector<double> target_state, double EXPECTED_JERK_IN_ONE_SEC){
+    vector<double> s_coeffs = traj[0];
+    vector<double> d_coeffs = traj[1];
+    double t = traj[2][0];
+
+    vector<double> s_dot_coeffs;
+    vector<double> s_d_dot_coeffs;
+    vector<double> jerk_coeffs;
+    s_dot_coeffs = differentiate(s_coeffs);
+    s_d_dot_coeffs = differentiate(s_dot_coeffs);
+    jerk_coeffs = differentiate(s_d_dot_coeffs);
+
+    double total_jerk = 0;
+    double dt = t/100;
+    double jerk;
+    for (int i = 0; i< 100; i++){
+        double time_t = t*i;
+	jerk = to_equation(jerk_coeffs, time_t);
+	total_jerk += abs(jerk*dt);
+    }
+    cout <<"total_jerk "<<total_jerk <<endl;
+    double jerk_per_sec = total_jerk/t;
+    return logistic(jerk_per_sec/EXPECTED_JERK_IN_ONE_SEC);
+}
+
+
+
+ 
 
 
 
@@ -1256,8 +1382,8 @@ int main() {
 		double log = logistic(ft);
 		cout << "logistic f(t) = " << log<< endl; 
 		
-		vector<vector<double>> test_traj = {{1,2,5,10,1,1},{1,10,1,1,1,1},{1}};
-		vector<double> test_car = {10,5,0,2,0,0};
+		vector<vector<double>> test_traj = {{0,2,5,0,1,1},{0,10,1,1,1,1},{0.5}};
+		vector<double> test_car = {1,5,0,2,0,0};
 		vector<double> delta = {0, 0, 0, 1,0,0};
 		vector<vector<double>> test_cars = {{10,5,0,2,0,0},{100,5,0,2,0,0},{200,5,0,6,0,0}};
                 //double shortest_dist = nearest_approach(test_traj, test_car);
@@ -1288,7 +1414,21 @@ int main() {
 
 		double efficiency = efficiency_cost(test_traj, test_car);
 		cout << "efficiency cost " << efficiency << endl;
-		
+
+		double total_acc = total_accel_cost(test_traj, test_car, EXPECTED_ACC_IN_ONE_SEC);
+		cout <<"total acc cost " << total_acc << endl;
+
+		double max_acc = max_accel_cost(test_traj, test_car, MAX_ACC);
+		cout <<"max acc cost " << max_acc << endl;
+
+		cout << "Weighted cost function "<<WEIGHTED_COST_FUNC.size() << endl;
+
+		double max_jerk = max_jerk_cost(test_traj, test_car, MAX_JERK);
+		cout <<"max jerk cost " << max_jerk << endl;
+
+		double total_jerk = total_jerk_cost(test_traj, test_car, EXPECTED_JERK_IN_ONE_SEC);
+
+		cout << "total jerk cost " << total_jerk << endl;
 
 		double nextlwpx = 0.;
 		double nextlwpy;
