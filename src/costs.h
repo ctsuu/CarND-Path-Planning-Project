@@ -7,16 +7,35 @@
 #include <algorithm>
 #include <cmath>
 #include "constants.h"
+#include "spline.h"
+
 
 using namespace std;
 
-// UTILITY FUNCTIONS
+// All function meanly port from Udacity classroom provided python codes.
+// I kept near the same naming convension for easy reading.  
+
 
 double logistic(double x){
-  // A function that returns a value between 0 and 1 for x in the range[0, infinity] and - 1 to 1 for x in 
-  // the range[-infinity, infinity]. Useful for cost functions.
+  // A function that returns a value between 0 and 1 for x in the range[0, infinity] and - 1 to 1 for x in the range[-infinity, infinity]. Useful for cost functions.
   return 2.0 / (1 + exp(-x)) - 1.0;
 }
+
+vector<double> state_in(vector<double> start_state, double t){
+  // Project Vehicle move in time t, with constant speed
+  // start_state format {s, s_dot, s_d_dot, d, d_dot, d_d_dot}
+  vector<double> state;
+  state = {
+  start_state[0]+(start_state[1]*t)+0.5*start_state[2]*t*t,
+  start_state[1]+start_state[2]*t,
+  start_state[2],
+  start_state[3]+(start_state[4]*t)+0.5*start_state[5]*t*t,
+  start_state[4]+start_state[5]*t,
+  start_state[5]
+  };
+  return state; 
+}
+
 
 double nearest_approach(vector<double> s_traj, vector<double> d_traj, vector<vector<double>> prediction) {
   double closest = 999999;
@@ -29,6 +48,38 @@ double nearest_approach(vector<double> s_traj, vector<double> d_traj, vector<vec
   return closest;
 }
 
+
+/*
+double nearest_approach(vector<vector<double>> traj, vector<double> cars){
+  // giving testing trajecory s_coeffs, d_coeffs, t combo package
+  // any vehicle current state {s, s_dot, s_d_dot, d, d_dot, d_d_dot, and duration T}:
+  // output: the closest dist between the testing trajecory and other cars projected path. 
+
+    double closest = 999999;
+    vector<double>s_ = traj[0]; // 6 elements
+    vector<double>d_ = traj[1]; // 6 elements
+    vector<double>t_ = traj[2];
+    //s = to_equation(s_)
+    //d = to_equation(d_)
+    for(int i = 1; i < 100; i++){
+        double t = i / 100 * t_[0];
+        double cur_s = eval_poly_equation(s_, t); // s coordinate value at time t
+        double cur_d = eval_poly_equation(d_, t); // d coordinate value at time t
+
+	// giving sdc car's s and d value
+	vector<double> target = state_in(cars, t);
+        
+        double dist = sqrt(pow((cur_s-target[0]),2) + pow((cur_d-target[3]),2));
+        //cout<< dist<<"," ;
+        if (dist < closest){
+            closest = dist;
+        }
+    }
+    return closest;
+}
+*/
+
+
 double nearest_approach_to_any_vehicle(vector<double> s_traj, vector<double> d_traj, map<int,vector<vector<double>>> predictions) {
   // Determines the nearest the vehicle comes to any other vehicle throughout a trajectory
   double closest = 999999;
@@ -40,6 +91,8 @@ double nearest_approach_to_any_vehicle(vector<double> s_traj, vector<double> d_t
   }
   return closest;
 }
+
+
 
 double nearest_approach_to_any_vehicle_in_lane(vector<double> s_traj, vector<double> d_traj, map<int,vector<vector<double>>> predictions) {
   // Determines the nearest the vehicle comes to any other vehicle throughout a trajectory
@@ -60,6 +113,7 @@ double nearest_approach_to_any_vehicle_in_lane(vector<double> s_traj, vector<dou
   return closest;
 }
 
+
 vector<double> velocities_for_trajectory(vector<double> traj) {
   // given a trajectory (a vector of positions), return the average velocity between each pair as a vector
   // also can be used to find accelerations from velocities, jerks from accelerations, etc.
@@ -70,6 +124,57 @@ vector<double> velocities_for_trajectory(vector<double> traj) {
   }
   return velocities;
 }
+
+
+
+vector<double> differentiate_t(vector<double> traj) {
+  // given a trajectory (a vector of positions), return the average velocity between each pair as a vector
+  // also can be used to find accelerations from velocities, jerks from accelerations, etc.
+  // (i.e. discrete derivatives)
+  vector<double> one_dot;
+  for (int i = 1; i < traj.size(); i++) {
+    one_dot.push_back((traj[i] - traj[i-1]) / DELTA_T);
+  }
+  return one_dot;
+}
+
+vector<double> differentiate_s(vector<double> coeffs){
+    // given all coeffs of a polynomial, calculates the derivative of it and returns the corresponding coefficients.
+    /*
+    new_cos = []
+    for deg, prev_co in enumerate(coefficients[1:]):
+        new_cos.append((deg+1) * prev_co)
+        #print(new_cos)
+    return new_cos
+    */
+	
+    vector<double> s_dot;
+    for (int i =1; i< coeffs.size(); i++){
+      s_dot.push_back(coeffs[i]*i);
+    }
+    return s_dot;
+}
+
+
+double eval_poly_equation(vector<double> coeffs, double t){
+    // given all coeffs, evaluate the polynormial equation at time f(t)
+    /*
+    
+    def f(t):
+        total = 0.0
+        for i, c in enumerate(coefficients): 
+            total += c * t ** i
+        return total
+    return f
+    */
+    double results = 0;
+    for(int i = 0; i < coeffs.size(); i++){
+	results += coeffs[i]*pow(t, i);
+    }
+    return results;
+}
+
+
 
 
 // COST FUNCTIONS
@@ -95,6 +200,74 @@ double traj_diff_cost(vector<double> s_traj, vector<double> target_s) {
   cost += fabs(s_ddot - target_s[2]) / SIGMA_S_DDOT;
   return logistic(cost);
 }
+
+double s_diff_cost(vector<vector<double>> traj, vector<double> target_vel,vector<double>delta){
+  // Given trajectories s and d polynormaile coeffs   
+  // Penalizes trajectories whose s coordinate (and derivatives) differ from the goal.
+  // 
+  vector<double> s_coeffs = traj[0]; 
+  vector<double> s_dot_coeffs;
+  vector<double> s_d_dot_coeffs;
+  double s, s_dot, s_d_dot, cost = 0;
+  double t = traj[2][0];
+  vector<double> est = state_in(target_vel, t); 
+  vector<double> est_s; // with safety buffer zone
+  // add the delta state( safety buffer zone) 
+  for (int i =0; i< est.size(); i++){
+	est_s.push_back(target_vel[i]-delta[i]);
+  }
+    
+  // the projected {s, s_dot, s_d_dot} at time t by given trajectory
+  
+
+  s_dot_coeffs = differentiate_s(s_coeffs);
+  s_d_dot_coeffs = differentiate_s(s_dot_coeffs);
+
+  s = eval_poly_equation(s_coeffs,t);
+  s_dot = eval_poly_equation(s_dot_coeffs,t);
+  s_d_dot = eval_poly_equation(s_d_dot_coeffs,t);
+
+  
+  cost += logistic(fabs(s - est_s[0]) / SIGMA_S);
+  cost += logistic(fabs(s_dot - est_s[1]) / SIGMA_S_DOT);
+  cost += logistic(fabs(s_d_dot - est_s[2]) / SIGMA_S_DDOT);
+  return cost;
+}
+
+double d_diff_cost(vector<vector<double>> traj, vector<double> target_vel, vector<double>delta){
+  // Given trajectories s and d polynormaile coeffs   
+  // Penalizes trajectories whose d coordinate (and derivatives) differ from the goal.
+
+  // use delta as fixed safety zone
+  vector<double> d_coeffs = traj[1]; 
+  vector<double> d_dot_coeffs;
+  vector<double> d_d_dot_coeffs;
+  double d, d_dot, d_d_dot, cost = 0;
+  double t = traj[2][0];
+  vector<double> est = state_in(target_vel, t); 
+  vector<double> est_d; // with safety buffer zone
+  // add the delta state( safety buffer zone) 
+  for (int i =0; i< est.size(); i++){
+	est_d.push_back(target_vel[i]-delta[i]);
+  }
+    
+  // the projected {s, s_dot, s_d_dot} at time t by given trajectory
+  
+
+  d_dot_coeffs = differentiate_s(d_coeffs);
+  d_d_dot_coeffs = differentiate_s(d_dot_coeffs);
+
+  d = eval_poly_equation(d_coeffs,t);
+  d_dot = eval_poly_equation(d_dot_coeffs,t);
+  d_d_dot = eval_poly_equation(d_d_dot_coeffs,t);
+
+  
+  cost += logistic(fabs(d - est_d[0]) / SIGMA_D);
+  cost += logistic(fabs(d_dot - est_d[1]) / SIGMA_D_DOT);
+  cost += logistic(fabs(d_d_dot - est_d[2]) / SIGMA_D_DDOT);
+  return cost;
+}
+
 
 double collision_cost(vector<double> s_traj, vector<double> d_traj, map<int,vector<vector<double>>> predictions) {
   // Binary cost function which penalizes collisions.
@@ -202,6 +375,72 @@ double not_middle_lane_cost(vector<double> d_traj) {
   double end_d = d_traj[d_traj.size()-1];
   return logistic(pow(end_d-6, 2));
 }
+
+double lane_departing_cost(vector<double> d_traj, double d) {
+  // penalize not stay in the middle of any lane (d = 2, 6, 10)
+  vector<double> ptsx = {0, 2, 4, 6, 8, 10, 12};
+  vector<double> ptsy = {1, 0.01, 1, 0.05, 1, 0.1, 1};
+  
+  //double end_d = d_traj[d_traj.size()-1];
+  tk::spline lane_depart;
+  lane_depart.set_points(ptsx, ptsy);
+  return lane_depart(d);
+  //return lane_depart(d_traj[d_traj.size()-1]);
+}
+
+double lane_following_cost(vector<double> s_traj, double T) {
+  // penalize too close to the leading car, or too far behind the leading car
+  // the sweat spot is between 2-3 second
+  vector<double> ptsx = {0.5, 1, 2, 3, 4, 5, 10, 15};
+  vector<double> ptsy = {1, 0.5, 0.1, 0.1, 0.2, 0.3, 0.5};
+  
+  tk::spline lane_follow;
+  lane_follow.set_points(ptsx, ptsy);
+  return lane_follow(T);
+}
+
+double left_lane_passing_cost(vector<double> s_traj, double T) {
+  // penalize stay too long in other car's blind spot, and passing from left
+  vector<double> ptsx = {-5, -4,  -3,  -2, -1, 0, 0.5, 1, 2, 3, 4};
+  vector<double> ptsy = {0.15, 0.2, 0.5, 1, 1, 1, 1, 0.5, 0.3, 0.2, 0.15};
+  
+  tk::spline left_lane_passing;
+  left_lane_passing.set_points(ptsx, ptsy);
+  return left_lane_passing(T);
+}
+
+double right_lane_passing_cost(vector<double> s_traj, double T) {
+  // penalize stay too long in other car's blind spot, and passing from right
+  vector<double> ptsx = {-5, -4,  -3,  -2, -1, 0, 0.5, 1, 2, 3, 4};
+  vector<double> ptsy = {0.2, 0.25, 0.6, 1, 1, 1, 1, 0.6, 0.4, 0.3, 0.25};
+  
+  tk::spline right_lane_passing;
+  right_lane_passing.set_points(ptsx, ptsy);
+  return right_lane_passing(T);
+}
+
+double blind_spot_cost(vector<double> s_traj, double T) {
+  // penalize stay in other car's blind spot, left, right or behind
+  vector<double> ptsx = {-7, -6, -5, -4,  -3,  -2, -1, 0, 0.5, 1, 2, 3, 4};
+  vector<double> ptsy = {0.1, 0.15, 0.2, 0.25, 0.6, 1, 1, 1, 1, 0.6, 0.3, 0.2, 0.15};
+  
+  tk::spline blind_spot;
+  blind_spot.set_points(ptsx, ptsy);
+  return blind_spot(T);
+}
+
+double open_speed_cost(vector<double> s_traj, double speed) {
+  // penalize the max car speed in a giving traj is close to or exceed speed limit, or too slow in traffic
+  vector<double> ptsx = {0, 10, 20, 30, 40, 45, 48, 49, 50, 60, 80};
+  vector<double> ptsy = {0.4, 0.3, 0.2, 0.1, 0.1, 0.1, 0.5, 0.6, 1, 1, 1};
+  
+  tk::spline blind_spot;
+  blind_spot.set_points(ptsx, ptsy);
+  return blind_spot(speed);
+}
+
+
+
 
 double calculate_total_cost(vector<double> s_traj, vector<double> d_traj, map<int,vector<vector<double>>> predictions) {
 
