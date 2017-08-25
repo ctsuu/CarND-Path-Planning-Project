@@ -16,6 +16,11 @@ public:
   double d;
   double d_d;
   double d_dd;
+  double safety_distance = 6;
+  double target_speed;
+  int lanes_available, goal_lane;
+  double max_acceleration;
+  double goal_s;
   string state;
   vector<string> available_states;
   vector<double> s_traj_coeffs, d_traj_coeffs; // 6 element array
@@ -36,6 +41,16 @@ public:
   virtual ~Vehicle();
 
   vector<double> get_traj_coeffs(vector<double> start, vector<double> end, double T);
+
+  void increment(double dt );
+
+  vector<double> state_at(double t);
+
+  //void realize_state(map<int,vector < vector<double> > > predictions);
+
+  //void realize_constant_speed();
+
+  //double _max_accel_for_lane(map<int,vector<vector<double> > > predictions, int lane, double s);
 
   vector<vector<double>> JMT(vector< double> start, vector <double> end, double T);
 

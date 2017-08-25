@@ -77,6 +77,113 @@ vector<double> Vehicle::get_traj_coeffs(vector<double> start, vector<double> end
 }
 
 
+void Vehicle::increment(double dt ) {
+
+    this->s += this->s_d * dt;
+    this->s_d += this->s_dd * dt;
+    this->d += this->d_d * dt;
+    this->d_d += this->d_dd * dt;
+}
+
+vector<double> Vehicle::state_at(double t) {
+
+    /*
+    Predicts state of vehicle in t seconds (assuming constant acceleration)
+    */
+    double s = this->s + this->s_d * t + this->s_dd* t * t / 2;
+    double s_d = this->s_d + this->s_dd * t;
+    double s_dd = this->s_dd;
+    double d = this->d + this->d_d * t + this->d_dd* t * t / 2;
+    double d_d = this->d_d + this->d_dd * t;
+    double d_dd = this->d_dd;
+    
+    return {s, s_d, s_dd, d, d_d, d_dd};
+}
+/*
+void Vehicle::realize_state(map<int,vector < vector<double> > > predictions) {
+   
+    //Given a state, realize it by adjusting acceleration and lane.
+    //Note - lane changes happen instantaneously.
+    
+    string state = this->state;
+    if(state.compare("CS") == 0)
+    {
+    	realize_constant_speed();
+    }
+    else if(state.compare("KL") == 0)
+    {
+    	realize_keep_lane(predictions);
+    }
+    else if(state.compare("LCL") == 0)
+    {
+    	realize_lane_change(predictions, "L");
+    }
+    else if(state.compare("LCR") == 0)
+    {
+    	realize_lane_change(predictions, "R");
+    }
+    else if(state.compare("PLCL") == 0)
+    {
+    	realize_prep_lane_change(predictions, "L");
+    }
+    else if(state.compare("PLCR") == 0)
+    {
+    	realize_prep_lane_change(predictions, "R");
+    }
+
+}
+
+void Vehicle::realize_constant_speed() {
+    this->s_d = 0;
+}
+
+double Vehicle::_max_accel_for_lane(map<int,vector<vector<double> > > predictions, int lane, double s) {
+
+  double delta_v_til_target = target_speed - this->s_d;
+  double max_acc = min(MAX_ACCEL, delta_v_til_target);
+
+    map<int, vector<vector<double> > >::iterator it = predictions.begin();
+    vector<vector<vector<double> > > in_front;
+    while(it != predictions.end())
+    {
+       
+    	int v_id = it->first;
+    	
+        vector<vector<double> > sf_out = it->second;
+        
+        if((sf_out[0][6] == (lane*4+2)) && (sf_out[0][5] > s+2))
+        {
+        	in_front.push_back(sf_out);
+		cout<<"Car in front of me: "<<v_id<<endl;
+
+        }
+        it++;
+    }
+    
+    if(in_front.size() > 0)
+    {
+    	int min_s = 1000;
+    	vector<vector<double>> leading = {};
+    	for(int i = 0; i < in_front.size(); i++)
+    	{
+    		if((in_front[i][0][1]-s) < min_s)
+    		{
+    			min_s = (in_front[i][0][1]-s);
+    			leading = in_front[i];
+    		}
+    	}
+    	
+    	int next_pos = leading[1][1];
+    	int my_next = s + this->s_d*DELTA_T;
+    	int separation_next = next_pos - my_next;
+    	int available_room = separation_next - preferred_buffer;
+    	max_acc = min(MAX_ACCEL, available_room);
+    }
+    
+    return max_acc;
+
+}
+*/
 
 
 // Trajectory Generation
