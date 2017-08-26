@@ -36,8 +36,29 @@ vector<double> state_in(vector<double> start_state, double t){
   return state; 
 }
 
+double eval_poly_equation(vector<double> coeffs, double t){
+    // given all coeffs, evaluate the polynormial equation at time f(t)
+    /*
+    
+    def f(t):
+        total = 0.0
+        for i, c in enumerate(coefficients): 
+            total += c * t ** i
+        return total
+    return f
+    */
+    double results = 0;
+    for(int i = 0; i < coeffs.size(); i++){
+	results += coeffs[i]*pow(t, i);
+    }
+    return results;
+}
+
 
 double nearest_approach(vector<double> s_traj, vector<double> d_traj, vector<vector<double>> prediction) {
+
+  // s_traj, d_traj, are list of points 
+  // prediction include estimated s_traj and d_traj for a given vehicle 	
   double closest = 999999;
   for (int i = 0; i < N_SAMPLES; i++) {
     double current_dist = sqrt(pow(s_traj[i] - prediction[i][0], 2) + pow(d_traj[i] - prediction[i][1], 2));
@@ -49,25 +70,23 @@ double nearest_approach(vector<double> s_traj, vector<double> d_traj, vector<vec
 }
 
 
-/*
-double nearest_approach(vector<vector<double>> traj, vector<double> cars){
+
+double cs_nearest_approach(vector<vector<double>> traj, vector<double> car_state){
   // giving testing trajecory s_coeffs, d_coeffs, t combo package
   // any vehicle current state {s, s_dot, s_d_dot, d, d_dot, d_d_dot, and duration T}:
   // output: the closest dist between the testing trajecory and other cars projected path. 
 
-    double closest = 999999;
-    vector<double>s_ = traj[0]; // 6 elements
-    vector<double>d_ = traj[1]; // 6 elements
-    vector<double>t_ = traj[2];
-    //s = to_equation(s_)
-    //d = to_equation(d_)
-    for(int i = 1; i < 100; i++){
+  double closest = 999999;
+  vector<double>s_ = traj[0]; // 6 elements
+  vector<double>d_ = traj[1]; // 6 elements
+  vector<double>t_ = traj[2];
+   for(int i = 1; i < 100; i++){
         double t = i / 100 * t_[0];
         double cur_s = eval_poly_equation(s_, t); // s coordinate value at time t
         double cur_d = eval_poly_equation(d_, t); // d coordinate value at time t
 
-	// giving sdc car's s and d value
-	vector<double> target = state_in(cars, t);
+	// giving sdc car's s and d states value
+	vector<double> target = state_in(car_state, t);
         
         double dist = sqrt(pow((cur_s-target[0]),2) + pow((cur_d-target[3]),2));
         //cout<< dist<<"," ;
@@ -77,7 +96,7 @@ double nearest_approach(vector<vector<double>> traj, vector<double> cars){
     }
     return closest;
 }
-*/
+
 
 
 double nearest_approach_to_any_vehicle(vector<double> s_traj, vector<double> d_traj, map<int,vector<vector<double>>> predictions) {
@@ -155,24 +174,6 @@ vector<double> differentiate_s(vector<double> coeffs){
     return s_dot;
 }
 
-
-double eval_poly_equation(vector<double> coeffs, double t){
-    // given all coeffs, evaluate the polynormial equation at time f(t)
-    /*
-    
-    def f(t):
-        total = 0.0
-        for i, c in enumerate(coefficients): 
-            total += c * t ** i
-        return total
-    return f
-    */
-    double results = 0;
-    for(int i = 0; i < coeffs.size(); i++){
-	results += coeffs[i]*pow(t, i);
-    }
-    return results;
-}
 
 
 
@@ -434,9 +435,9 @@ double open_speed_cost(vector<double> s_traj, double speed) {
   vector<double> ptsx = {0, 10, 20, 30, 40, 45, 48, 49, 50, 60, 80};
   vector<double> ptsy = {0.4, 0.3, 0.2, 0.1, 0.1, 0.1, 0.5, 0.6, 1, 1, 1};
   
-  tk::spline blind_spot;
-  blind_spot.set_points(ptsx, ptsy);
-  return blind_spot(speed);
+  tk::spline open_speed;
+  open_speed.set_points(ptsx, ptsy);
+  return open_speed(speed);
 }
 
 

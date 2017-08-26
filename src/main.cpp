@@ -36,6 +36,8 @@ using namespace std;
 using json = nlohmann::json;
 
 
+//constexpr double pi() { return M_PI; }
+
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
 // else the empty string "" will be returned.
@@ -137,6 +139,7 @@ int main() {
 	  double end_path_d = j[1]["end_path_d"];
 	  // Sensor Fusion Data, a list of all other cars on the same side of the road.
 	  auto sensor_fusion = j[1]["sensor_fusion"];
+	  cout <<sensor_fusion<<endl;
 
   	  double my_lane = 1;
 	  double nextd = 6; 
@@ -327,6 +330,62 @@ map_waypoints_y);
 		
 	  }
 		
+	  vector<double> s_traj = {6, 5, 4, 3, 2, 1, 0, -1};
+	  vector<double> d_traj = {6, 5, 4, 3, 2, 1, 0, -1};
+	  double duration = 2.5;
+	  /*
+	  for (int i = 0; i< 20; i++){
+		  cout << i ;
+		  double lane_depart = lane_departing_cost(d_traj, (i-2.5));
+		  cout <<", lane_depart_cost = "<<lane_depart;
+	  
+		  //double lane_follow = lane_following_cost(s_traj, (i/2));
+		  //cout <<", lane_follow_cost = "<<lane_follow;
+		  double open_speed = open_speed_cost(s_traj, (i*3));
+		  cout <<", open_speed_cost = "<<open_speed;
+		  //double llane_passing = left_lane_passing_cost(s_traj, (i-10));
+		  //cout <<", llane_passing_cost = "<<llane_passing<< endl;
+		  double blind_spot = blind_spot_cost(s_traj, (i-10));
+		  cout <<", blind_spot_cost = "<<blind_spot<< endl;
+	  }*/
+
+	  cout <<"traj_start_time; " << traj_start_time << ", duration:"<<duration << endl;
+	  // sort sensor fusion info by vehicle id
+	  map<int, vector<vector<double>>> predictions;
+	  for (auto sf: sensor_fusion) {
+		double obs_v = sqrt(pow((double)sf[3], 2) + pow((double)sf[4], 2));
+		Vehicle obs = Vehicle(sf[5], obs_v, 0, sf[6], 0, 0);
+		int v_id = sf[0];
+		vector<vector<double>> preds = obs.generate_predictions(traj_start_time, duration, map_waypoints_s, map_waypoints_x, map_waypoints_y, car_x, car_y, angle);
+		cout << v_id<<" obs car local x predictions";
+		for (int i = 0; i < preds[0].size(); i++){
+			cout<<": "<<preds[2][i];
+
+		} 
+		cout <<endl;
+		cout << v_id<<" obs car local y predictions";
+		for (int i = 0; i < preds[0].size(); i++){
+			cout<<": "<<preds[3][i];
+
+		} 
+		cout <<endl;
+
+		cout << v_id<<" obs car local s predictions";
+		for (int i = 0; i < preds[0].size(); i++){
+			cout<<": "<<preds[4][i];
+
+		} 
+		cout <<endl;
+
+		cout << v_id<<" obs car local d predictions";
+		for (int i = 0; i < preds[0].size(); i++){
+			cout<<": "<<preds[5][i];
+
+		} 
+		cout <<endl;
+
+		predictions[v_id] = preds;
+	  }
 
 					
   

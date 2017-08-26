@@ -40,6 +40,12 @@ public:
   */
   virtual ~Vehicle();
 
+  vector<double> getFD_GC(double s, double d, vector<double> maps_s, vector<double> maps_x, vector<double> maps_y);
+  
+  vector<double> getGC_LC(double car_x, double car_y, double theta, double gc_x, double gc_y);
+
+  vector<double> getLC_GC(double car_x, double car_y, double theta, double lc_x, double lc_y);
+
   vector<double> get_traj_coeffs(vector<double> start, vector<double> end, double T);
 
   void increment(double dt );
@@ -70,7 +76,7 @@ public:
 
   double evaluate_coeffs_at_time(vector<double> coeffs, double time);
 
-  vector<vector<double>> generate_predictions(double traj_start_time, double duration);
+  vector<vector<double>> generate_predictions(double traj_start_time, double duration, vector<double> maps_s, vector<double> maps_x, vector<double> maps_y, double car_x, double car_y, double theta);
 
   string display();
 

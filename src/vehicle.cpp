@@ -36,6 +36,50 @@ Vehicle::Vehicle(double s, double s_d, double s_dd, double d, double d_d, double
 
 Vehicle::~Vehicle() {}
 
+// Transform from Frenet s,d coordinates to global Cartesian x,y
+vector<double> Vehicle::getFD_GC(double s, double d, vector<double> maps_s, vector<double> maps_x, vector<double> maps_y)
+{
+	int prev_wp = -1;
+	while(s > maps_s[prev_wp+1] && (prev_wp < (int)(maps_s.size()-1) ))
+	{
+		prev_wp++;
+	}
+	int wp2 = (prev_wp+1)%maps_x.size();
+	double heading = atan2((maps_y[wp2]-maps_y[prev_wp]),(maps_x[wp2]-maps_x[prev_wp]));
+	// the x,y,s along the segment
+	double seg_s = (s-maps_s[prev_wp]);
+	double seg_x = maps_x[prev_wp]+seg_s*cos(heading);
+	double seg_y = maps_y[prev_wp]+seg_s*sin(heading);
+	double perp_heading = heading-M_PI/2;
+	double x = seg_x + d*cos(perp_heading);
+	double y = seg_y + d*sin(perp_heading);
+	return {x,y};
+}
+
+// Transform from global Cartesian x,y to local car coordinates x,y
+// where x is pointing to the positive x axis and y is deviation from the car's path
+vector<double> Vehicle::getGC_LC(double car_x, double car_y, double theta, double gc_x, double gc_y) {
+  vector<double> results;
+
+  // convert to local coordinates
+  float diff_x = (gc_x - car_x);
+  float diff_y = (gc_y - car_y);
+  results.push_back( diff_x*cos(theta) + diff_y*sin(theta));
+  results.push_back(-diff_x*sin(theta) + diff_y*cos(theta));
+  return results;
+}
+
+
+// Transform from local Cartesian x,y to global car coordinates x,y
+vector<double> Vehicle::getLC_GC(double car_x, double car_y, double theta, double lc_x, double lc_y) {
+  vector<double> results;
+
+  // convert back to global coordinates
+  results.push_back(lc_x*cos(theta) - lc_y*sin(theta) + car_x);
+  results.push_back(lc_x*sin(theta) + lc_y*cos(theta) + car_y);
+  return results;
+}
+
 
 
 vector<double> Vehicle::get_traj_coeffs(vector<double> start, vector<double> end, double T)
@@ -561,20 +605,40 @@ double Vehicle::evaluate_coeffs_at_time(vector<double> coeffs, double time) {
     return eval;
 }
 
-vector<vector<double>> Vehicle::generate_predictions(double traj_start_time, double duration) {
+vector<vector<double>> Vehicle::generate_predictions(double traj_start_time, double duration, vector<double> maps_s, vector<double> maps_x, vector<double> maps_y, double car_x, double car_y, double theta) {
 
     // Generates a list of predicted s and d positions for dummy constant-speed vehicles
     // Because ego car trajectory is considered from end of previous path, we should also consider the 
     // trajectories of other cars starting at that time.
 
     vector<vector<double>> predictions;
+    vector<double> sf_gcx, sf_gcy, sf_lcx, sf_lcy, sf_s, sf_d;
+    
     for( int i = 0; i < N_SAMPLES; i++)
     {
-        double t = traj_start_time + (i * duration/N_SAMPLES);
+        //double t = traj_start_time + (i * duration/N_SAMPLES);
+	double t = i*(traj_start_time + duration)/N_SAMPLES;
         double new_s = this->s + this->s_d * t;
-        vector<double> s_and_d = {new_s, this->d};
-        predictions.push_back(s_and_d);
+	//vector<double> s_and_d = {new_s, this->d}; 
+	// assuming the car in the same lane
+	sf_s.push_back(new_s);
+	sf_d.push_back(this->d);
+	vector<double> gcxy = getFD_GC(new_s, this->d, maps_s, maps_x, maps_y);
+	sf_gcx.push_back(gcxy[0]);
+	sf_gcy.push_back(gcxy[1]);
+        //predictions.push_back(s_and_d);
+        vector<double> gclc = getGC_LC(car_x, car_y, theta, gcxy[0], gcxy[1]);
+	sf_lcx.push_back(gclc[0]);
+	sf_lcy.push_back(gclc[1]);
+
     }
+    predictions.push_back(sf_gcx);
+    predictions.push_back(sf_gcy);
+    predictions.push_back(sf_lcx);
+    predictions.push_back(sf_lcy);
+
+    predictions.push_back(sf_s);
+    predictions.push_back(sf_d);
     return predictions;
 }
 
