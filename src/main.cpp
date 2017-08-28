@@ -105,7 +105,7 @@ int main() {
     s_dy.set_points(map_waypoints_s,map_waypoints_dy);
 
     // Start in lane 1 (0 is left, 1 is middle, 2 is right)
-    int lane = 1;
+    int lane = 2;
     //double speed_limit = 49.5; // mph
     double ref_vel = POWER*SPEED_LIMIT; // m/s
 
@@ -138,6 +138,7 @@ int main() {
                     double car_s = j[1]["s"];
                     double car_d = j[1]["d"];
                     double car_yaw = j[1]["yaw"];
+		    double angle = deg2rad(car_yaw);
                     double car_speed = j[1]["speed"];
 		    car_speed *= 0.44704;    	// convert mph to m/s
                     // Previous path data given to the Planner
@@ -162,7 +163,7 @@ int main() {
                     double ref_y = car_y;
                     double ref_yaw = deg2rad(car_yaw);
 		    double ref_start_time = (path_size) * DELTA_T;
-		    double ref_duration = 0.8; // from reference point up, add new path 
+		    double ref_duration = 0.6; // from reference point up, add new path 
 		    double rampup_speed = POWER*MAX_ACCEL*ref_duration;
 		    double rampup_dist = 0.5*POWER*MAX_ACCEL*ref_duration*ref_duration;  
 
@@ -172,12 +173,18 @@ int main() {
 	  	    vector<vector<double>> s_jmt, d_jmt, rampup, cs, smooth_gx, smooth_gy;
 	    	    vector<double> s_start, s_end, d_start, d_end, xy, xy_, cs_xy_;
 		    vector<double> jmt_ptsx, jmt_ptsy;
-		    double target_s_diff= car_speed*ref_duration; // expected distance ahead
-		    double target_speed= -1; // expected speed difference
+		    double next_s, next_d;
+		    //double target_s_diff= car_speed*ref_duration; // expected distance ahead
+		    double target_s_diff= 12; // expected distance ahead
+		    double target_speed= -0.1; // expected speed difference
 		    double target_accel = 0; // expected accel difference
 		    double target_d = 0; // expected lane change
-		    double target_t = 2; // expected 2 second target leading time 
+		    double target_t = 3; // expected 2 second target leading time 
 		    double target_lane = 0; // expected lane change difference
+
+
+                    vector<double> next_x_vals;
+                    vector<double> next_y_vals;
 
 
                     if(path_size < 2) {
@@ -203,8 +210,9 @@ int main() {
 			s_start.push_back(s_dot);
 			s_start.push_back(s_ddot);
 		
-			s_end.push_back(s_+rampup_dist);
-			s_end.push_back(s_dot+rampup_speed);  
+			s_end.push_back(s_+0.5*rampup_dist);
+			//s_end.push_back(s_dot+rampup_speed);  
+			s_end.push_back(0.5*rampup_speed);  
 			s_end.push_back(s_ddot);
 
 			d_start.push_back(d_);
@@ -214,6 +222,45 @@ int main() {
 			d_end.push_back(d_);
 			d_end.push_back(d_dot);
 			d_end.push_back(d_ddot);
+
+			//generate ramp up curve 
+			rampup = sdc.JMT(s_start, s_end, ref_duration);
+			next_d = 2+ 4*lane;
+			cout<<"if path_size less than 2, next_d: "<<next_d<<" next_s: ";
+			for(int i = 0; i<rampup[1].size(); i++){
+				next_s = rampup[1][i];
+			
+				cout<<next_s<<",";
+			
+
+				// get waypoints in global coordinate  
+				xy_ = getXY(next_s, next_d, s_x, s_y, s_dx, s_dy);  
+			
+				// get waypoints in car coordinate
+
+				double diff_x = xy_[0] - car_x;
+				double diff_y = xy_[1] - car_y;
+
+				double init_lx =  diff_x*cos(angle) + diff_y*sin(angle);
+				double init_ly = -diff_x*sin(angle) + diff_y*cos(angle);
+				//init_sy = smooth_waypoints(init_lx);
+
+
+				// transform back to global coordinate
+				double gx = init_lx*cos(angle)-init_ly*sin(angle)+car_x;
+				double gy = init_lx*sin(angle)+init_ly*cos(angle)+car_y;
+
+
+				ptsx.push_back(gx);
+				ptsy.push_back(gy);
+
+
+  				next_x_vals.push_back(gx);
+				next_y_vals.push_back(gy);
+
+			
+			}
+			cout<<" rampup size: "<< rampup[1].size()<<endl;
 			
 
                     } else {
@@ -223,32 +270,55 @@ int main() {
                         double ref_x_prev = previous_path_x[path_size-2];
                         double ref_y_prev = previous_path_y[path_size-2];
                         ref_yaw = atan2(ref_y - ref_y_prev, ref_x - ref_x_prev);
+
                         ptsx.push_back(ref_x_prev);
                         ptsx.push_back(ref_x);
                         ptsy.push_back(ref_y_prev);
                         ptsy.push_back(ref_y);
 
 
-			// for a rolling car, speed at reference point is, 
-			vector<vector<double>> check_dots = sdc.getDOTs(previous_path_x, previous_path_y, car_x, car_y, car_yaw, car_speed);
+                    	// Keep previously generated points
+                    	for(int i = 0; i < path_size; i++) {
+                        	next_x_vals.push_back(previous_path_x[i]);
+                        	next_y_vals.push_back(previous_path_y[i]);
+                    	}
 
-			//double ref_s = car_s + check_dots[0][path_size];
-			//double ref_s_dot = check_dots[1][path_size];
+
+			//for(int i = 0; i < next_x_vals.size(); i++){
+			//	cout <<next_x_vals[i] <<", "<< next_y_vals[i]<<endl;
+			//}
 			
-			s_ = car_s + check_dots[0][path_size];
-			s_dot = check_dots[1][path_size];
-			s_ddot = check_dots[2][path_size];
+			
+
+
+
+			// for a rolling car, speed at reference point is, 
+			vector<vector<double>> check_dots = sdc.getDOTs(next_x_vals, next_y_vals, car_x, car_y, car_yaw, car_speed);
+
+			double ref_s = check_dots[0][path_size-1];
+			double ref_s_dot = check_dots[1][path_size-1];
+
+			cout<<"car_s: "<< car_s <<"ref_s: "<< ref_s <<"ref_s_dot: " << ref_s_dot<< endl;
+
+			
+			s_ = car_s + check_dots[0][path_size-1];
+			s_dot = check_dots[1][path_size-1];
+			s_ddot = 0;//check_dots[2][path_size];
 
 			d_ = car_d;
 			d_dot = 0;
 			d_ddot = 0;
-
+			
+			//vector<double> check_xy = getXY(s_, d_, s_x, s_y, s_dx, s_dy); 
+			//cout<< "check xy: "<< check_xy[0]<<", "<< check_xy[1]<< endl;
 			s_start.push_back(s_);
 			s_start.push_back(s_dot);
 			s_start.push_back(s_ddot);
-		
+
+
 			s_end.push_back(s_+target_s_diff);
 			s_end.push_back(s_dot+target_speed);  
+			//s_end.push_back(SPEED_LIMIT);  
 			s_end.push_back(s_ddot+target_accel);
 
 			d_start.push_back(d_);
@@ -258,28 +328,68 @@ int main() {
 			d_end.push_back(d_+target_lane);
 			d_end.push_back(d_dot);
 			d_end.push_back(d_ddot);
+
+			//generate constant speed path 
+			cs = sdc.JMT(s_start, s_end, ref_duration);
+			next_d = 2+ 4*lane;
+			cout<<"next_d: "<<next_d<<" next_s: ";
+			vector<double> chk_csx, chk_csy;
+			for(int i = 0; i<cs[1].size(); i++){
+				next_s = cs[1][i];
+			
+				// get waypoints in global coordinate  
+				cs_xy_ = getXY(next_s, next_d, s_x, s_y, s_dx, s_dy); 
+				chk_csx.push_back(cs_xy_[0]);
+				chk_csy.push_back(cs_xy_[1]);
+
+				// get waypoints in car coordinate
+				double cs_diff_x = cs_xy_[0] - ref_x;
+				double cs_diff_y = cs_xy_[1] - ref_y;
+
+				double cs_lx =  cs_diff_x*cos(ref_yaw) + cs_diff_y*sin(ref_yaw);
+				double cs_ly = -cs_diff_x*sin(ref_yaw) + cs_diff_y*cos(ref_yaw);
+				//cs_sy = smooth_waypoints(cs_lx);
+
+				// transform back to global coordinate
+				double gx = cs_lx*cos(ref_yaw)-cs_ly*sin(ref_yaw)+ref_x;
+				double gy = cs_lx*sin(ref_yaw)+cs_ly*cos(ref_yaw)+ref_y;
+
+
+				ptsx.push_back(gx);
+				ptsy.push_back(gy);
+ 			
+				next_x_vals.push_back(gx);
+				next_y_vals.push_back(gy);
+ 	
+				cout<<next_s<<",";
+			
+			}
+			cout<<" constant speed size: "<< cs[1].size()<<endl;
+
+			//vector<vector<double>> check_dots_cs = sdc.getDOTs(chk_csx, chk_csy, ref_x, ref_y, ref_yaw, ref_s_dot);
+
 			
 		    }
 
 		
 		    cout<<"s_start: ";
 		    for (int i = 0; i< 3; i++){
-			cout<<s_start[i]<<", "<<endl;
+			cout<<s_start[i]<<", ";
 		    }
 		    cout<<endl;
 		    cout<<"s_end: ";
 		    for (int i = 0; i< 3; i++){
-			cout<<s_end[i]<<", "<<endl;
+			cout<<s_end[i]<<", ";
 		    }
 		    cout<<endl;
 		    cout<<"d_start: ";
 		    for (int i = 0; i< 3; i++){
-			cout<<d_start[i]<<", "<<endl;
+			cout<<d_start[i]<<", ";
 		    }
 		    cout<<endl;
 		    cout<<"d_end: ";
 		    for (int i = 0; i< 3; i++){
-			cout<<d_end[i]<<endl;
+			cout<<d_end[i]<<", ";
 		    }
 		    cout<<endl;
 		    
@@ -310,13 +420,11 @@ int main() {
                     tk::spline traj;
                     traj.set_points(ptsx,ptsy);
 
-                    vector<double> next_x_vals;
-                    vector<double> next_y_vals;
 
                     // Keep previously generated points
                     for(int i = 0; i < path_size; i++) {
-                        next_x_vals.push_back(previous_path_x[i]);
-                        next_y_vals.push_back(previous_path_y[i]);
+                        //next_x_vals.push_back(previous_path_x[i]);
+                        //next_y_vals.push_back(previous_path_y[i]);
                     }
 
                     // Determine distance between points
@@ -337,8 +445,8 @@ int main() {
                         x_point = x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw) + ref_x;
                         y_point = x_ref * sin(ref_yaw) + y_ref * cos(ref_yaw) + ref_y;
 
-                        next_x_vals.push_back(x_point);
-                        next_y_vals.push_back(y_point);
+                        //next_x_vals.push_back(x_point);
+                        //next_y_vals.push_back(y_point);
                     }
 		    vector<vector<double>> check_dots = sdc.getDOTs(next_x_vals, next_y_vals, car_x, car_y, car_yaw, car_speed);
 
