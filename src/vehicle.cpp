@@ -2,6 +2,7 @@
 #include "constants.h"
 //#include "fusion_planner.h"
 //#include "road.h"
+//#include "costs.h"
 
 #include <iostream>
 #include <sstream>
@@ -11,6 +12,7 @@
 #include <random>
 #include <algorithm>
 #include "Eigen-3.3/Eigen/Dense"
+#include "spline.h"
 
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
@@ -35,6 +37,69 @@ Vehicle::Vehicle(double s, double s_d, double s_dd, double d, double d_d, double
 }
 
 Vehicle::~Vehicle() {}
+
+// From points to dots
+vector<vector<double>>Vehicle::getDOTs(vector<double> ptsx, vector<double> ptsy, double ref_x_, double ref_y_, double ref_yaw_, double ref_v_){
+    // Given list of points {x0, x1, ...xn} and {y0, y1, ...yn}, start point location, direction and speed
+    // Return lists of speed, acceleration and jert between next two points 
+    double cum_dist = 0;
+    double prev_dist = ref_v_*DELTA_T;
+    double prev_x = ref_x_;
+    double prev_y = ref_y_;
+    double prev_speed = ref_v_;
+    double prev_accel =0;
+    double max_speed = 0, max_accel = 0, max_jerk = 0;
+    vector<vector<double>> dots;
+    vector<double> ref_s, dist, _dot, d_dot, dd_dot;
+    cout<<"check distance, check speed, check accel, check jerk:"<<endl;
+    for (int i = 0; i <ptsx.size(); i++){
+    	double check_dist = sqrt((prev_x-ptsx[i])*(prev_x-ptsx[i])+(prev_y-ptsy[i])*(prev_y-ptsy[i]));
+        double check_speed = check_dist/DELTA_T;
+	double check_accel = (check_speed-prev_speed)/DELTA_T;
+	double check_jerk = (check_accel-prev_accel)/DELTA_T;
+
+	
+	cout<<"\t"<< cum_dist<<", \t"<<check_speed*2.24<<", \t"<<check_accel<<", \t"<<check_jerk<<endl;
+
+	prev_x = ptsx[i];
+	prev_y = ptsy[i];
+	cum_dist += check_dist; 
+	prev_dist = check_dist;
+	prev_speed = check_speed;
+	prev_accel = check_accel;
+
+	ref_s.push_back(cum_dist);
+        dist.push_back(check_dist);
+	_dot.push_back(check_speed);
+	d_dot.push_back(check_accel);
+	dd_dot.push_back(check_jerk);
+    }
+    dots.push_back(ref_s);
+    dots.push_back(_dot);
+    dots.push_back(d_dot);
+    dots.push_back(dd_dot);
+    dots.push_back(dist);
+    return dots;
+}
+
+	
+
+ 
+/*
+
+// Transform from Frenet s,d coordinates to Cartesian x,y
+vector<double> Vehicle::getFDGCXY(double s, double d, tk::spline s_x, tk::spline s_y, tk::spline s_dx, tk::spline s_dy) {
+    double path_x = s_x(s);
+    double path_y = s_y(s);
+    double dx = s_dx(s);
+    double dy = s_dy(s);
+    double x = path_x + d * dx;
+    double y = path_y + d * dy;
+    return {x,y};
+}
+*/
+
+
 
 // Transform from Frenet s,d coordinates to global Cartesian x,y
 vector<double> Vehicle::getFD_GC(double s, double d, vector<double> maps_s, vector<double> maps_x, vector<double> maps_y)
@@ -230,7 +295,7 @@ double Vehicle::_max_accel_for_lane(map<int,vector<vector<double> > > prediction
 */
 
 
-// Trajectory Generation
+// JMT Trajectory Generation
 vector<vector<double>> Vehicle::JMT(vector< double> start, vector <double> end, double T)
 {
     /*

@@ -2,11 +2,11 @@
 #define CONSTANTS
 
 
-#define PREVIOUS_PATH_POINTS_TO_KEEP 30
+//#define PREVIOUS_PATH_POINTS_TO_KEEP 30
 #define RESERVED_PATH_POINT 30
 #define NUM_POINTS 50
 
-#define PATH_DT 0.02                    // seconds
+//#define PATH_DT 0.02                    // seconds
 #define DELTA_T 0.02                    // seconds, delta t to match simulator refresh rate
 
 #define TRACK_LENGTH 6945.554           // meters
@@ -22,7 +22,8 @@
 #define DT 0.20                         // seconds
 
 // traffic rules
-#define SPEED_LIMIT 21.9                // 50MPH/2.24 = 22.3MPS
+#define SPEED_LIMIT 22.3                // 50MPH/2.24 = 22.3m/s
+//#define SPEED_LIMIT 50.0                  // 50MPH
 #define VELOCITY_INCREMENT_LIMIT 0.125
 #define DISTANCE_INCREMENT_LIMIT 0.445
 #define VEHICLE_RADIUS 2.25              // meters
@@ -32,7 +33,7 @@
 #define FOLLOWING_GAP 2.0		 // front safety distance, present in sec
 
 // comfort rule
-#define POWER 0.9                       // 90% output
+#define POWER 0.99                       // 99% output
 #define MAX_INSTANTANEOUS_JERK 10       // m/s/s/s
 #define MAX_INSTANTANEOUS_ACCEL 10      // m/s/s
 

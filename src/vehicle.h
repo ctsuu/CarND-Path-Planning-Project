@@ -40,6 +40,10 @@ public:
   */
   virtual ~Vehicle();
 
+  vector<vector<double>> getDOTs(vector<double> ptsx, vector<double> ptsy, double ref_x, double ref_y, double ref_yaw, double ref_v);
+
+  //vector<double> getFDGCXY(double s, double d, tk::spline s_x, tk::spline s_y, tk::spline s_dx, tk::spline s_dy);
+
   vector<double> getFD_GC(double s, double d, vector<double> maps_s, vector<double> maps_x, vector<double> maps_y);
   
   vector<double> getGC_LC(double car_x, double car_y, double theta, double gc_x, double gc_y);
