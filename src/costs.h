@@ -55,13 +55,13 @@ double eval_poly_equation(vector<double> coeffs, double t){
 }
 
 
-double nearest_approach(vector<double> s_traj, vector<double> d_traj, vector<vector<double>> prediction) {
+double nearest_approach(vector<double> traj_x, vector<double> traj_y, vector<vector<double>> prediction) {
 
-  // s_traj, d_traj, are list of points 
-  // prediction include estimated s_traj and d_traj for a given vehicle 	
+  // traj_x, traj_y, are list of local points{lx0, lx1, ...ly9}, and {ly0, ly1, ... ly9}  
+  // prediction format {{lx0, lx1, ...lx9},{ly0, ly1, ... ly9},...}
   double closest = 999999;
-  for (int i = 0; i < N_SAMPLES; i++) {
-    double current_dist = sqrt(pow(s_traj[i] - prediction[i][0], 2) + pow(d_traj[i] - prediction[i][1], 2));
+  for (int i = 0; i < TRAJ_SAMPLES; i++) {
+    double current_dist = sqrt(pow(traj_x[i] - prediction[2][i], 2) + pow(traj_y[i] - prediction[3][i], 2));
     if (current_dist < closest) {
       closest = current_dist;
     }
@@ -139,7 +139,7 @@ vector<double> velocities_for_trajectory(vector<double> traj) {
   // (i.e. discrete derivatives)
   vector<double> velocities;
   for (int i = 1; i < traj.size(); i++) {
-    velocities.push_back((traj[i] - traj[i-1]) / DT);
+    velocities.push_back((traj[i] - traj[i-1]) / TRAJ_DT);
   }
   return velocities;
 }
@@ -193,9 +193,9 @@ double traj_diff_cost(vector<double> s_traj, vector<double> target_s) {
   s1 = s_traj[s_end - 1];
   s2 = s_traj[s_end - 2];
   s3 = s_traj[s_end - 3];
-  s_dot1 = (s1 - s2) / DT;
-  s_dot2 = (s2 - s3) / DT;
-  s_ddot = (s_dot1 - s_dot2) / DT;
+  s_dot1 = (s1 - s2) / TRAJ_DT;
+  s_dot2 = (s2 - s3) / TRAJ_DT;
+  s_ddot = (s_dot1 - s_dot2) / TRAJ_DT;
   cost += fabs(s1 - target_s[0]) / SIGMA_S;
   cost += fabs(s_dot1 - target_s[1]) / SIGMA_S_DOT;
   cost += fabs(s_ddot - target_s[2]) / SIGMA_S_DDOT;

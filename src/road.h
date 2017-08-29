@@ -21,8 +21,6 @@ constexpr double pi() { return M_PI; }
 double deg2rad(double x) { return x * pi() / 180; }
 double rad2deg(double x) { return x * 180 / pi(); }
 
-
-
 double distance(double x1, double y1, double x2, double y2)
 {
 	return sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1));
@@ -30,58 +28,9 @@ double distance(double x1, double y1, double x2, double y2)
 
 
 
-int ClosestWaypoint(double x, double y, vector<double> maps_x, vector<double> maps_y)
-{
 
-	double closestLen = 100000; //large number
-	int closestWaypoint = 0;
+/*
 
-	for(int i = 0; i < maps_x.size(); i++)
-	{
-		double map_x = maps_x[i];
-		double map_y = maps_y[i];
-
-		//cout << "map x: "<< map_x <<";"<<"Map_y : "<< map_y << endl;
-		double dist = distance(x,y,map_x,map_y);
-		if(dist < closestLen)
-		{
-			closestLen = dist;
-			closestWaypoint = i;
-		}
-
-	}
-
-	return closestWaypoint;
-
-}
-
-
-
-int NextWaypoint(double x, double y, double theta, vector<double> maps_x, vector<double> maps_y)
-{
-
-	int closestWaypoint = ClosestWaypoint(x,y,maps_x,maps_y);
-
-	double map_x = maps_x[closestWaypoint];
-	double map_y = maps_y[closestWaypoint];
-
-	double heading = atan2( (map_y-y),(map_x-x) );
-
-	// add new line
-	// double theta_pos = fmod(theta + (2*pi()),2*pi());     
-	// double heading_pos = fmod(heading + (2*pi()),2*pi());
-
-	double angle = abs(theta-heading);
-	// cout << "map x: "<< map_x <<";\t"<<"Map_y : "<< map_y << endl;
-	if(angle > pi()/4)
-	//if(angle > pi()/2)
-	{
-		closestWaypoint++;
-	}
-
-	return closestWaypoint;
-
-}
 
 // Transform from Cartesian x,y coordinates to Frenet s,d coordinates
 vector<double> getFrenet_org(double x, double y, double theta, vector<double> maps_x, vector<double> maps_y)
@@ -121,6 +70,8 @@ vector<double> getFrenet_org(double x, double y, double theta, vector<double> ma
 	return {frenet_s,frenet_d};
 }
 
+*/
+/*
 // Transform from Frenet s,d coordinates to global Cartesian x,y
 vector<double> getXY(double s, double d, vector<double> maps_s, vector<double> maps_x, vector<double> maps_y)
 {
@@ -140,6 +91,24 @@ vector<double> getXY(double s, double d, vector<double> maps_s, vector<double> m
 	double y = seg_y + d*sin(perp_heading);
 	return {x,y};
 }
+
+*/
+
+
+
+// Transform from Frenet s,d coordinates to Cartesian x,y
+vector<double> getXY(double s, double d, tk::spline s_x, tk::spline s_y, tk::spline s_dx, tk::spline s_dy) {
+    double path_x = s_x(s);
+    double path_y = s_y(s);
+    double dx = s_dx(s);
+    double dy = s_dy(s);
+    double x = path_x + d * dx;
+    double y = path_y + d * dy;
+    return {x,y};
+}
+
+
+
 
 
 
@@ -167,7 +136,7 @@ vector<double> getWorldXY(double car_x, double car_y, double theta, double lx, d
   return results;
 }
 
-
+/*
 // segment of 12 x,y coordinates for waypoints (5 in the back, 1 closest and 6 in the front) for a given lane
 // get a segment of zoomed in map, such as 3 passed way points and 6 way points look ahead 
 
@@ -194,7 +163,7 @@ maps_dy,vector<double> maps_s) {
     int next = (previous+i)%maps_x.size();
     vector<double> localxy = getLocalXY(car_x, car_y, angle, (maps_x[next]+d*maps_dx[next]), (maps_y[next]+d*maps_dy[next]));
     //vector<double> localxy = getLocalXY(car_x, car_y, theta, maps_x[next], maps_y[next]);
-    cout << next << " localized_x: " << localxy[0] << ", localized_y: " << localxy[1] <<", angle: "<< angle;
+    cout <<"Num of waypoints: "<< next << " localized_x: " << localxy[0] << ", localized_y: " << localxy[1] <<", angle: "<< angle;
     cout << ", maps_x: " << maps_x[next] << ", maps_y: " << maps_y[next] << ", maps_s: "<< maps_s[next]<<endl;
     
     wplx.push_back(localxy[0]);
@@ -215,7 +184,7 @@ maps_dy,vector<double> maps_s) {
   results.push_back(wps);
   return results;
 }
-
+*/
 
 
 
@@ -307,7 +276,7 @@ vector<double> interpolate_points(vector<double> pts_x, vector<double> pts_y,
   }
   return output;
 }
-
+/*
 // sensor fusion data processing
 vector<double> sensor(vector<vector<double>> sensor_fusion, int my_lane, double car_v, double car_s, double car_d, vector<double> map_waypoints_x, vector<double> map_waypoints_y){
 	/* Given sensor fusion in format{ sf_id, sf_x, sf_y, sf_vx, sf_vy, sf_s, sf_d}
@@ -318,7 +287,7 @@ vector<double> sensor(vector<vector<double>> sensor_fusion, int my_lane, double 
  
 	Return Target position in next few seconds.
 	Format:{s, s_dot, s_d_dot, d, d_dot, d_d_dot, T} for JMT input. 
-	*/
+	
 
 	vector<vector<double>>same_lane;
 	vector<double> target_time;
@@ -497,8 +466,8 @@ vector<double> sensor(vector<vector<double>> sensor_fusion, int my_lane, double 
 	}
 	return results;
 }	
-
-
+*/
+/*
 // Transform from Cartesian x,y coordinates to Frenet s,d coordinates
 vector<double> getFrenet(double x, double y, double theta, vector<double> maps_x, vector<double> maps_y, vector<double> maps_s)
 {
@@ -536,199 +505,7 @@ vector<double> getFrenet(double x, double y, double theta, vector<double> maps_x
 	frenet_s += distance(0,0,proj_x,proj_y);
 	return {frenet_s,frenet_d};
 }
-
-
-// sensor fusion data processing
-vector<double> target_state(vector<vector<double>> sensor_fusion, int my_lane, double car_v, double car_s, double car_d, vector<double> map_waypoints_x, vector<double> map_waypoints_y){
-	/* Given sensor fusion in format{ sf_id, sf_x, sf_y, sf_vx, sf_vy, sf_s, sf_d}
-
-	calculate the missing sf_s_dot, sf_s_d_dot, sf_d_dot, sf_d_d_dot, 
-	sf_lead_time( how far other car ahead or behind my car
-	sf_lane ( which lane other cars are in)
- 
-	Return Target position in next few seconds.
-	Format:{s, s_dot, s_d_dot, d, d_dot, d_d_dot, T} for JMT input. 
-	*/
-
-	vector<vector<double>>same_lane;
-	vector<double> target_time;
-	vector<double> dummy_car; 
-	int sf_id;
-	double sf_x; 
-	double sf_y;
-	double sf_vx;
-	double sf_vy;
-	double sf_s;
-	double sf_s_dot;
-	double sf_s_d_dot = 0; 
-	double sf_d;
-	double sf_d_dot;
-	double sf_d_d_dot = 0;  
-
-	
-	double target_s; // car lead s
-	double target_s_dot; // car lead s_dot
-	double target_s_d_dot; // car lead s_d_dot
-	double target_d; // car lead d
-	double target_d_dot; // car lead d_dot
-	double target_d_d_dot; // car lead d_d_dot
-	double target_t = 2.5; // initial lane following gap in sec
-	int target_lane = my_lane; // initial lane following
-	int target_id; // car id
-
-	double check_car_s; 
-	double check_car_d;
-	double self_car_s;
-
-	vector<double> start_state;
-	
-	vector<double> check_car_state_in;
-
-	double lead_s; // in meter
-	double lead_t; // in second
-
-	int sf_lane;
-
-	bool left_lane_clear = true;
-	bool right_lane_clear = true;
-	bool too_close = false;
-	bool lane_keep = true;
-	bool prepare_left_lane_change = false;
-	bool prepare_right_lane_change = false;
-
-	// for the car in my lane, check the following time, unit in second 
-	double front_safety_gap = 2.0;   
-	double back_safety_gap = 2.0; 
-	double following_gap = 2.0; // for curise following 
-
-	std::map<double, double> lane_map0;
-	std::map<double, double> lane_map1;
-	std::map<double, double> lane_map2;
-
-	vector<double> lane1;
-        vector<double> lane2;
-        vector<double> lane3;
-        vector<vector<double>> lanes;
-	lanes.push_back(lane1);
-        lanes.push_back(lane2);
-        lanes.push_back(lane3);
-	vector<double> available_lane;
-	vector<double> results;
-
-
-	// if target car is too far, create a dummy car in close range, such as 3-5 seconds
-	
-	for (int i = 0; i < sensor_fusion.size(); i++){
-		sf_id = sensor_fusion[i][0];
-		sf_x = sensor_fusion[i][1];
-		sf_y = sensor_fusion[i][2];
-		sf_vx = sensor_fusion[i][3];
-		sf_vy = sensor_fusion[i][4];
-		sf_s = sensor_fusion[i][5];
-		sf_d = sensor_fusion[i][6];
-		
-		double sf_xt1 = sf_x+(0.02*sf_vx); 
-		double sf_yt1 = sf_y+(0.02*sf_vy);
-		double sf_heading = atan2(sf_yt1-sf_y,sf_xt1-sf_x); 
-		vector<double> sf_frenet = getFrenet_org(sf_xt1, sf_yt1, sf_heading,map_waypoints_x, map_waypoints_y);  
-					
-		sf_s_dot = (sf_frenet[0]-sf_s)/0.02;
-		sf_d_dot = (sf_frenet[1]-sf_d)/0.02;
-		
-		start_state.push_back(sf_s);
-		start_state.push_back(sf_s_dot);
-		start_state.push_back(0);  // assume constant accelection 0
-		start_state.push_back(sf_d);
-		start_state.push_back(sf_d_dot);
-		start_state.push_back(0); // assume constant accelection 0
-
-		//check_car_state_in = state_in(start_state, 1); // state after 1 sec
-		
-
-		// double check_speed = sqrt(sf_vx*sf_vx+sf_vy*sf_vy); // m/s
-		//check_car_s = check_car_state_in[0];
-		//check_car_d = check_car_state_in[3];
-		//self_car_s = sf_s + sf_s_dot*1;	
-		
-		// lead time from any car, in seconds
-					
-		// simply projected car_s and car_d 50 steps for 1 second 
-		//check_car_s += (50*0.02*sf_s_dot); 
-		//check_car_d += (50*0.02*sf_d_dot); 
-		//lead_s = check_car_s - self_car_s; // in meter
-		lead_s = sf_s - car_s; // in meter
-		lead_t = lead_s/car_v; // in seconds
-		//sf_lane = int(round(sf_d-2)/4);
-
-		//lanes[sf_lane].push_back(sf_s);
-		//lanes[sf_lane].push_back(lead_t);
-	
-	
-	
-		for (int i =0; i < 3; i++){
-	
-		
-			if (sf_d < (2+4*i+2) && sf_d > (2+4*i-2)) {
-				//lanes[i].push_back(sf_s);
-				lanes[i].push_back(lead_t);
-			}
-		}
-	
-	}
-
-	// find closest car, and open lanes
-	for (int i =0; i < lanes.size(); i++){
-		cout << "lane"<<i<<": ";
-		double closest_car = 9999;
-		for (int j =0; j < lanes[i].size(); j++){
-			//cout <<lanes[i][j]<<", ";
-			if( abs(lanes[i][j])<closest_car){
-				closest_car = abs(lanes[i][j]);
-			}
-		}
-		cout <<"closest car" << closest_car<< ", "; 
-		if(closest_car > following_gap){
-			cout<<"lane open"<<endl;
-			//left_lane_clear = false;
-			//available_lane.push_back(i);
-			target_d = 2+4*i;
-			
-			target_s_dot = car_v;
-			target_t = closest_car*0.9;
-			target_s = car_s + car_v*target_t;
-
-			results.push_back(target_s);
-			results.push_back(target_s_dot);
-			results.push_back(0);
-			results.push_back(target_d);
-			results.push_back(0); // target_d_dot
-			results.push_back(0); // target_d_d_dot
-			results.push_back(target_t);
-			//return results;
-			
-		} else{
-			cout << "too close, keep lane " << endl;
-			too_close = true;
-			target_d = 2+4*my_lane;
-			target_s_dot = car_v*0.6; //slow down
-			target_t = closest_car*0.8;
-			target_s = car_s + car_v*target_t-15; 
-
-
-			results.push_back(target_s);
-			results.push_back(target_s_dot);
-			results.push_back(0);
-			results.push_back(target_d);
-			results.push_back(0); // target_d_dot
-			results.push_back(0); // target_d_d_dot
-			results.push_back(target_t);
-			return results;
-		}
-	}
-	return results;
-}	
-
-
+*/
 
 
 

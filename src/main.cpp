@@ -97,19 +97,21 @@ int main() {
 
     // Credit to https://github.com/ericlavigne/
     // Splines to support conversion from s,d to x,y.
-    // Other direction is also possible but more difficult.
     tk::spline s_x, s_y, s_dx, s_dy;
     s_x.set_points(map_waypoints_s,map_waypoints_x);
     s_y.set_points(map_waypoints_s,map_waypoints_y);
     s_dx.set_points(map_waypoints_s,map_waypoints_dx);
     s_dy.set_points(map_waypoints_s,map_waypoints_dy);
 
+
+
+
     // Start in lane 1 (0 is left, 1 is middle, 2 is right)
-    int lane = 2;
+    int lane = 1;
     //double speed_limit = 49.5; // mph
     double ref_vel = POWER*SPEED_LIMIT; // m/s
 
-    h.onMessage([&s_x, &s_y, &s_dx, &s_dy, &lane, &ref_vel, &my_car, &sdc, &obs](
+    h.onMessage([&map_waypoints_x, &map_waypoints_y, &map_waypoints_s, &map_waypoints_dx, &map_waypoints_dy,&s_x, &s_y, &s_dx, &s_dy, &lane, &ref_vel, &my_car, &sdc, &obs](
             uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
             uWS::OpCode opCode) {
         // "42" at the start of the message means there's a websocket message event.
@@ -151,6 +153,57 @@ int main() {
                     // Sensor Fusion Data, a list of all other cars on the same side of the road.
                     auto sensor_fusion = j[1]["sensor_fusion"];
 
+		    //double target_s_diff= car_speed*ref_duration; // expected distance ahead
+		    double target_s_diff= 12; // expected distance ahead
+		    double target_speed= 0; // expected speed difference
+		    double target_accel = 0; // expected accel difference
+		    double target_d = 0; // expected lane change
+		    double target_t = 3; // expected 2 second target leading time 
+		    double target_lane = 0; // expected lane change difference
+
+
+	
+		    vector<double> lane_target_states = sdc.get_target_state(sensor_fusion, lane, car_speed, car_s, car_d,  map_waypoints_x, map_waypoints_y);
+		    vector<vector<double>> states_pool, seed_states;
+		    vector<double> seed_state;
+		    
+	  	    cout<<"sensor output: "<<lane_target_states.size()<<endl;
+		    
+	  	    for(int i = 0 ; i < lane_target_states.size()/7; i++){
+			cout<< "state"<<i<<": \t";
+			cout <<lane_target_states[i*7+0]<<",";
+			cout <<lane_target_states[i*7+1]<<",";
+			cout <<lane_target_states[i*7+2]<<",";
+			cout <<lane_target_states[i*7+3]<<",";
+			cout <<lane_target_states[i*7+4]<<",";
+			cout <<lane_target_states[i*7+5]<<",";
+			cout <<lane_target_states[i*7+6]<<","<<endl;
+
+			seed_state.push_back(lane_target_states[i*7+0]);
+			seed_state.push_back(lane_target_states[i*7+1]);
+			seed_state.push_back(lane_target_states[i*7+2]);
+			seed_state.push_back(lane_target_states[i*7+3]);
+			seed_state.push_back(lane_target_states[i*7+4]);
+			seed_state.push_back(lane_target_states[i*7+5]);
+			seed_state.push_back(lane_target_states[i*7+6]);
+		    
+		        seed_states.push_back(seed_state);
+			seed_state.clear();
+	  	    }
+
+
+		    states_pool = sdc.perturb_goal(seed_states);
+		
+		    for(int i = 0; i<states_pool.size(); i++){
+			cout<<"state pool num "<<i<<": ";
+			for(int j=0; j<states_pool[i].size(); j++){
+		  	    cout<<states_pool[i][j]<<", ";
+			}
+			cout<<endl;
+		    }
+		    cout<<endl;
+		
+
                     //int prev_size = previous_path_x.size();
 		    int path_size = min(RESERVED_PATH_POINT, (int)previous_path_x.size());
 	  	      	    
@@ -174,13 +227,45 @@ int main() {
 	    	    vector<double> s_start, s_end, d_start, d_end, xy, xy_, cs_xy_;
 		    vector<double> jmt_ptsx, jmt_ptsy;
 		    double next_s, next_d;
-		    //double target_s_diff= car_speed*ref_duration; // expected distance ahead
-		    double target_s_diff= 12; // expected distance ahead
-		    double target_speed= -0.1; // expected speed difference
-		    double target_accel = 0; // expected accel difference
-		    double target_d = 0; // expected lane change
-		    double target_t = 3; // expected 2 second target leading time 
-		    double target_lane = 0; // expected lane change difference
+	  	    // sort sensor fusion info by vehicle id
+	  	    map<int, vector<vector<double>>> predictions;
+	  	    for (auto sf: sensor_fusion) {
+			double obs_v = sqrt(pow((double)sf[3], 2) + pow((double)sf[4], 2));
+			Vehicle obs = Vehicle(sf[5], obs_v, 0, sf[6], 0, 0);
+			int v_id = sf[0];
+			vector<vector<double>> preds = obs.generate_predictions(ref_start_time, ref_duration, map_waypoints_s, map_waypoints_x, map_waypoints_y, car_x, car_y, angle);
+		    	/*
+		    	cout << v_id<<" obs car local x predictions";
+		    	for (int i = 0; i < preds[0].size(); i++){
+				cout<<": "<<preds[2][i];
+
+		    	} 
+		    	cout <<endl;
+		    	cout << v_id<<" obs car local y predictions";
+		    	for (int i = 0; i < preds[0].size(); i++){
+				cout<<": "<<preds[3][i];
+
+		    	} 
+		    	cout <<endl;
+
+		    	cout << v_id<<" obs car local s predictions";
+		    	for (int i = 0; i < preds[0].size(); i++){
+				cout<<": "<<preds[4][i];
+
+		    	} 
+		    	cout <<endl;
+
+		    	cout << v_id<<" obs car local d predictions";
+		    	for (int i = 0; i < preds[0].size(); i++){
+				cout<<": "<<preds[5][i];
+
+		    	} 
+		    	cout <<endl;*/
+
+		    	predictions[v_id] = preds;
+	  	    }
+
+
 
 
                     vector<double> next_x_vals;
@@ -222,7 +307,7 @@ int main() {
 			d_end.push_back(d_);
 			d_end.push_back(d_dot);
 			d_end.push_back(d_ddot);
-
+			
 			//generate ramp up curve 
 			rampup = sdc.JMT(s_start, s_end, ref_duration);
 			next_d = 2+ 4*lane;
@@ -271,18 +356,20 @@ int main() {
                         double ref_y_prev = previous_path_y[path_size-2];
                         ref_yaw = atan2(ref_y - ref_y_prev, ref_x - ref_x_prev);
 
-                        ptsx.push_back(ref_x_prev);
-                        ptsx.push_back(ref_x);
-                        ptsy.push_back(ref_y_prev);
-                        ptsy.push_back(ref_y);
+                        //ptsx.push_back(ref_x_prev);
+                        //ptsx.push_back(ref_x);
+                        //ptsy.push_back(ref_y_prev);
+                        //ptsy.push_back(ref_y);
 
-
+			
                     	// Keep previously generated points
                     	for(int i = 0; i < path_size; i++) {
                         	next_x_vals.push_back(previous_path_x[i]);
                         	next_y_vals.push_back(previous_path_y[i]);
+				ptsx.push_back(previous_path_x[i]);
+				ptsy.push_back(previous_path_y[i]);
                     	}
-
+			
 
 			//for(int i = 0; i < next_x_vals.size(); i++){
 			//	cout <<next_x_vals[i] <<", "<< next_y_vals[i]<<endl;
@@ -317,7 +404,7 @@ int main() {
 
 
 			s_end.push_back(s_+target_s_diff);
-			s_end.push_back(s_dot+target_speed);  
+			s_end.push_back(s_dot-target_speed-0.3);  // negative gain
 			//s_end.push_back(SPEED_LIMIT);  
 			s_end.push_back(s_ddot+target_accel);
 
@@ -328,7 +415,7 @@ int main() {
 			d_end.push_back(d_+target_lane);
 			d_end.push_back(d_dot);
 			d_end.push_back(d_ddot);
-
+			
 			//generate constant speed path 
 			cs = sdc.JMT(s_start, s_end, ref_duration);
 			next_d = 2+ 4*lane;
@@ -365,9 +452,6 @@ int main() {
 			
 			}
 			cout<<" constant speed size: "<< cs[1].size()<<endl;
-
-			//vector<vector<double>> check_dots_cs = sdc.getDOTs(chk_csx, chk_csy, ref_x, ref_y, ref_yaw, ref_s_dot);
-
 			
 		    }
 
@@ -392,63 +476,8 @@ int main() {
 			cout<<d_end[i]<<", ";
 		    }
 		    cout<<endl;
-		    
-
-                    vector<double> next_wp0 = getXY(car_s+30, (2+4*lane), s_x, s_y, s_dx, s_dy);
-                    vector<double> next_wp1 = getXY(car_s+60, (2+4*lane), s_x, s_y, s_dx, s_dy);
-                    vector<double> next_wp2 = getXY(car_s+90, (2+4*lane), s_x, s_y, s_dx, s_dy);
-
-                    ptsx.push_back(next_wp0[0]);
-                    ptsx.push_back(next_wp1[0]);
-                    ptsx.push_back(next_wp2[0]);
-
-                    ptsy.push_back(next_wp0[1]);
-                    ptsy.push_back(next_wp1[1]);
-                    ptsy.push_back(next_wp2[1]);
-
-                    //cout << "Original ptsx:" << endl << ptsx << endl;
-		    
-                    // Convert ptsx/y to car's coordinate system
-                    for(int i = 0; i < ptsx.size(); i++) {
-                        double shift_x = ptsx[i] - ref_x;
-                        double shift_y = ptsy[i] - ref_y;
-                        ptsx[i] = (shift_x * cos(0-ref_yaw) - shift_y * sin(0-ref_yaw));
-                        ptsy[i] = (shift_x * sin(0-ref_yaw) + shift_y * cos(0-ref_yaw));
-                    }
-
-                    
-                    tk::spline traj;
-                    traj.set_points(ptsx,ptsy);
 
 
-                    // Keep previously generated points
-                    for(int i = 0; i < path_size; i++) {
-                        //next_x_vals.push_back(previous_path_x[i]);
-                        //next_y_vals.push_back(previous_path_y[i]);
-                    }
-
-                    // Determine distance between points
-                    double target_x = 30.0;
-                    double target_y = traj(target_x);
-                    double target_dist = sqrt(target_x * target_x + target_y * target_y);
-                    double x_add_on = 0;
-
-                    for(int i = 1; i <= 50-path_size; i++) {
-                        double N = target_dist / (0.02*ref_vel); //  m/s
-                        double x_point = x_add_on + target_x / N;
-                        double y_point = traj(x_point);
-                        x_add_on = x_point;
-                        double x_ref = x_point;
-                        double y_ref = y_point;
-
-                        // Shift back to map coordinates
-                        x_point = x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw) + ref_x;
-                        y_point = x_ref * sin(ref_yaw) + y_ref * cos(ref_yaw) + ref_y;
-
-                        //next_x_vals.push_back(x_point);
-                        //next_y_vals.push_back(y_point);
-                    }
-		    vector<vector<double>> check_dots = sdc.getDOTs(next_x_vals, next_y_vals, car_x, car_y, car_yaw, car_speed);
 
                     json msgJson;
                     msgJson["next_x"] = next_x_vals;

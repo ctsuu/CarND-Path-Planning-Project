@@ -3,7 +3,7 @@
 
 
 //#define PREVIOUS_PATH_POINTS_TO_KEEP 30
-#define RESERVED_PATH_POINT 30
+#define RESERVED_PATH_POINT 40
 #define NUM_POINTS 50
 
 //#define PATH_DT 0.02                    // seconds
@@ -18,8 +18,8 @@
 #define NUM_WAYPOINTS_AHEAD 10
 
 // for trajectory generation/evaluation and non-ego car predictions
-#define N_SAMPLES 10
-#define DT 0.20                         // seconds
+#define TRAJ_SAMPLES 20
+#define TRAJ_DT 0.20                         // seconds
 
 // traffic rules
 #define SPEED_LIMIT 22.3                // 50MPH/2.24 = 22.3m/s
@@ -34,10 +34,10 @@
 
 // comfort rule
 #define POWER 0.99                       // 99% output
-#define MAX_INSTANTANEOUS_JERK 10       // m/s/s/s
-#define MAX_INSTANTANEOUS_ACCEL 10      // m/s/s
+#define MAX_INSTANTANEOUS_JERK 9.8       // m/s/s/s
+#define MAX_INSTANTANEOUS_ACCEL 9.8      // m/s/s
 
-#define MAX_JERK 10       		// m/s/s/s
+#define MAX_JERK 9.8       		// m/s/s/s
 #define MAX_ACCEL 9.8     		// m/s/s
 
 #define EXPECTED_JERK_IN_ONE_SEC 2      // m/s/s
@@ -71,13 +71,13 @@
 #define NUM_TIMESTEPS_TO_PERTURB 5      // the number of timesteps, +/- target time, to perturb trajectories
 
 // sigma values for perturbing targets
-#define SIGMA_S 10.0                     // s
+#define SIGMA_S 15.0                     // s
 #define SIGMA_S_DOT 3.0                 // s_dot
 #define SIGMA_S_DDOT 0.1                  // s
 #define SIGMA_D 0.5                       // d
 #define SIGMA_D_DOT 0.1                   // d_dot
 #define SIGMA_D_DDOT 0.1                  // d_double_dot
-#define SIGMA_T 0.05
+#define SIGMA_T 1.0			  // +/- 1s
 
 //#define SIGMA_S 10.0                    // s
 //#define SIGMA_S_DOT 4.0                 // s_dot

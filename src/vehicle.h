@@ -40,6 +40,20 @@ public:
   */
   virtual ~Vehicle();
 
+  double distance4(double x1, double y1, double x2, double y2);
+
+  int ClosestWaypoint(double x, double y, vector<double> maps_x, vector<double> maps_y);
+
+  int NextWaypoint(double x, double y, double theta, vector<double> maps_x, vector<double> maps_y);
+
+  vector<double> getFrenetSD(double x, double y, double theta, vector<double> maps_x, vector<double> maps_y);
+
+  vector<double> get_target_state(vector<vector<double>> sensor_fusion, int my_lane, double car_v, double car_s, double car_d, vector<double> map_waypoints_x, vector<double> map_waypoints_y);
+
+  vector<vector<double>> oneDOT(vector<double> ptsx, vector<double> ptsy);
+
+  vector<vector<double>> smoother(vector<double> ptsx, vector<double> ptsy);
+
   vector<vector<double>> getDOTs(vector<double> ptsx, vector<double> ptsy, double ref_x, double ref_y, double ref_yaw, double ref_v);
 
   //vector<double> getFDGCXY(double s, double d, tk::spline s_x, tk::spline s_y, tk::spline s_dx, tk::spline s_dy);
@@ -73,6 +87,8 @@ public:
   vector<double> get_leading_vehicle_data_for_lane(int target_lane, map<int, vector<vector<double>>> predictions, double duration);
 
   vector<vector<double>> perturb(vector<vector<double>> target_s_and_d);
+
+  vector<vector<double>> perturb_goal(vector<vector<double>> seed_states);
 
   vector<vector<double>> generate_traj_for_target(vector<vector<double>> perturbed_target, double duration);
 
