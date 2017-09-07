@@ -8,9 +8,13 @@
 
 //#define PATH_DT 0.02                    // seconds
 #define DELTA_T 0.02                    // seconds, delta t to match simulator refresh rate
+#define COST_DT 0.15
+#define COST_SAMPLES 15
 
 #define TRACK_LENGTH 6945.554           // meters
 #define LANE_WIDTH 4.0			// meters
+#define LEFT_LANE 0
+#define RIGHT_LANE 2
 
 
 // number of waypoints to use for interpolation
@@ -18,12 +22,17 @@
 #define NUM_WAYPOINTS_AHEAD 10
 
 // for trajectory generation/evaluation and non-ego car predictions
-#define TRAJ_SAMPLES 20
+#define TRAJ_SAMPLES 10
 #define TRAJ_DT 0.20                         // seconds
+
 
 // traffic rules
 #define SPEED_LIMIT 22.3                // 50MPH/2.24 = 22.3m/s
+#define LANE_ZERO_SPEED_FACTOR 0.95     // speed correction
+#define LANE_ONE_SPEED_FACTOR 0.975     // speed correction
+#define LANE_TWO_SPEED_FACTOR 1.0     // speed correction
 //#define SPEED_LIMIT 50.0                  // 50MPH
+
 #define VELOCITY_INCREMENT_LIMIT 0.125
 #define DISTANCE_INCREMENT_LIMIT 0.445
 #define VEHICLE_RADIUS 2.25              // meters
@@ -66,25 +75,26 @@
 
 
 
+
 // DEPRECATED CONSTANTS
 #define NUM_RANDOM_TRAJ_TO_GEN 20        // the number of perturbed trajectories to generate (for each perturbed duration)
 #define NUM_TIMESTEPS_TO_PERTURB 5      // the number of timesteps, +/- target time, to perturb trajectories
 
 // sigma values for perturbing targets
-#define SIGMA_S 15.0                     // s
+#define SIGMA_S 7.0                     // s
 #define SIGMA_S_DOT 3.0                 // s_dot
 #define SIGMA_S_DDOT 0.1                  // s
 #define SIGMA_D 0.5                       // d
 #define SIGMA_D_DOT 0.1                   // d_dot
 #define SIGMA_D_DDOT 0.1                  // d_double_dot
-#define SIGMA_T 1.0			  // +/- 1s
+#define SIGMA_T 0.5			  // +/- 0.5s
 
 //#define SIGMA_S 10.0                    // s
 //#define SIGMA_S_DOT 4.0                 // s_dot
-#define SIGMA_S_D_DOT 2.0               // s
+//#define SIGMA_S_D_DOT 2.0               // s
 //#define SIGMA_D 1.0                       // d
 //#define SIGMA_D_DOT 1.0                   // d_dot
-#define SIGMA_D_D_DOT 1.0                  // d_double_dot
+//#define SIGMA_D_D_DOT 1.0                  // d_double_dot
 //#define SIGMA_T 0.1
 
 

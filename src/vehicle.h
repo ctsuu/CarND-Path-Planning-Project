@@ -21,6 +21,7 @@ public:
   int lanes_available, goal_lane;
   double max_acceleration;
   double goal_s;
+  bool isInitialized;
   string state;
   vector<string> available_states;
   vector<double> s_traj_coeffs, d_traj_coeffs; // 6 element array
@@ -77,6 +78,8 @@ public:
   //double _max_accel_for_lane(map<int,vector<vector<double> > > predictions, int lane, double s);
 
   vector<vector<double>> JMT(vector< double> start, vector <double> end, double T);
+
+  vector<double> JMT_coeffs(vector< double> start, vector <double> end, double T);
 
   vector<vector<double>> get_best_frenet_trajectory(map<int, vector<vector<double>>> predictions, double duration);
 

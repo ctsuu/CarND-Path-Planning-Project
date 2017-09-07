@@ -26,12 +26,15 @@
 #include "costs.h"
 
 
-
+using Eigen::Vector2d;
 
 using namespace std;
 
+
+
 // for convenience
 using json = nlohmann::json;
+
 
 
 // Checks if the SocketIO event has JSON data.
@@ -61,11 +64,11 @@ int main() {
 
 
     // Load up map values for waypoint's x,y,s and d normalized normal vectors
-    vector<double> map_waypoints_x;
-    vector<double> map_waypoints_y;
-    vector<double> map_waypoints_s;
-    vector<double> map_waypoints_dx;
-    vector<double> map_waypoints_dy;
+    vector<double> map_waypoints_x, wp_x;
+    vector<double> map_waypoints_y, wp_y;
+    vector<double> map_waypoints_s, wp_s;
+    vector<double> map_waypoints_dx, wp_dx;
+    vector<double> map_waypoints_dy, wp_dy;
 
     // Waypoint map to read from
     string map_file_ = "../data/highway_map.csv";
@@ -87,6 +90,7 @@ int main() {
         iss >> s;
         iss >> d_x;
         iss >> d_y;
+        
         map_waypoints_x.push_back(x);
         map_waypoints_y.push_back(y);
         map_waypoints_s.push_back(s);
@@ -95,23 +99,83 @@ int main() {
     }
     
 
-    // Credit to https://github.com/ericlavigne/
+    // Credit to https://github.com/ericlavigne/ 
+    // and https://github.com/WolfgangSteiner/CarND-Path-Planning-Project/blob/master/src/Waypoints.cpp
     // Splines to support conversion from s,d to x,y.
+    // warp around waypoints 
+    double first_s = map_waypoints_s.front();
+    double first_x = map_waypoints_x.front();
+    double first_y = map_waypoints_y.front();
+    double first_dx = map_waypoints_dx.front();
+    double first_dy = map_waypoints_dy.front();
+
+    double last_s = map_waypoints_s.back();
+    double last_x = map_waypoints_x.back();
+    double last_y = map_waypoints_y.back();
+    double last_dx = map_waypoints_dx.back();
+    double last_dy = map_waypoints_dy.back();
+
+    
+    
+    wp_s.push_back(last_s-max_s);
+    wp_x.push_back(last_x);
+    wp_y.push_back(last_y);
+    wp_dx.push_back(last_dx);
+    wp_dy.push_back(last_dy);
+
+    for(int i=0; i<map_waypoints_s.size(); i++){
+	wp_s.push_back(map_waypoints_s[i]);
+	wp_x.push_back(map_waypoints_x[i]);
+	wp_y.push_back(map_waypoints_y[i]);
+	wp_dx.push_back(map_waypoints_dx[i]);
+	wp_dy.push_back(map_waypoints_dy[i]);
+    }
+
+    wp_s.push_back(first_s+max_s);
+    wp_x.push_back(first_x);
+    wp_y.push_back(first_y);
+    wp_dx.push_back(first_dx);
+    wp_dy.push_back(first_dy);
+
+
     tk::spline s_x, s_y, s_dx, s_dy;
-    s_x.set_points(map_waypoints_s,map_waypoints_x);
-    s_y.set_points(map_waypoints_s,map_waypoints_y);
-    s_dx.set_points(map_waypoints_s,map_waypoints_dx);
-    s_dy.set_points(map_waypoints_s,map_waypoints_dy);
+    s_x.set_boundary(tk::spline::second_deriv, 0.0, tk::spline::first_deriv, -2.0, false);
+    s_y.set_boundary(tk::spline::second_deriv, 0.0, tk::spline::first_deriv, -2.0, false);
+
+    s_x.set_points(wp_s,wp_x);
+    s_y.set_points(wp_s,wp_y);
+    s_dx.set_points(wp_s,wp_dx);
+    s_dy.set_points(wp_s,wp_dy);
 
 
 
 
     // Start in lane 1 (0 is left, 1 is middle, 2 is right)
     int lane = 1;
+    int counter =1;
     //double speed_limit = 49.5; // mph
     double ref_vel = POWER*SPEED_LIMIT; // m/s
+	/*
+	const Vector2d p(735.0, 1136.0);
+	//const Vector2d p(747.618, 1155.37);
+	double s = 6914;
+	double error = Error(p, s, s_x, s_y);
+	double errorDeriv = ErrorDeriv(p, s, s_x, s_y);
+	Vector2d normal = GetNormalAt(s, s_x, s_y );
+	Vector2d getxyitp = getXY(6900, -6, s_x, s_y);
+	vector<double> getxy = getXY(6900, 6, s_x, s_y, s_dx, s_dy);
 
-    h.onMessage([&map_waypoints_x, &map_waypoints_y, &map_waypoints_s, &map_waypoints_dx, &map_waypoints_dy,&s_x, &s_y, &s_dx, &s_dy, &lane, &ref_vel, &my_car, &sdc, &obs](
+	const Vector2d q(getxy[0],getxy[1]);
+	Vector2d s_d = getFrenet(q, 6920, s_x, s_y, s_dx, s_dy);
+	
+	cout <<"p and s error " << error<<" error deriv "<<errorDeriv<< endl;
+	cout <<"Get normal at" << normal[0] <<", " << normal[1]<<endl;
+	cout <<"Get XY interpolated " <<getxyitp[0] <<", "<<getxyitp[1]<< endl;
+	cout <<"Get XY spline " <<getxy[0] <<", "<<getxy[1]<< endl;
+	cout <<"Get S& D " << s_d[0] << "," << s_d[1] << endl;	    
+	*/
+
+    h.onMessage([&map_waypoints_x, &map_waypoints_y, &map_waypoints_s, &map_waypoints_dx, &map_waypoints_dy,&s_x, &s_y, &s_dx, &s_dy, &lane, &ref_vel, &my_car, &sdc, &obs, &counter](
             uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
             uWS::OpCode opCode) {
         // "42" at the start of the message means there's a websocket message event.
@@ -160,9 +224,25 @@ int main() {
 		    double target_d = 0; // expected lane change
 		    double target_t = 3; // expected 2 second target leading time 
 		    double target_lane = 0; // expected lane change difference
+		    /*
+		    // change lane to right
+			if (lane<RIGHT_LANE){
+			    if (counter %100 ==0){
+				lane +=1;
+				//state = "LCR";
+			    }
+			}
 
+		    // change lane to left
+  			if( lane>LEFT_LANE){
+			    if(counter %300 ==0){
+				lane -=2;
+				//state = "LCL";
+			    }
+			}
 
-	
+		    cout <<"lane number " << lane << " counter "<< counter<< endl;
+		    */
 		    vector<double> lane_target_states = sdc.get_target_state(sensor_fusion, lane, car_speed, car_s, car_d,  map_waypoints_x, map_waypoints_y);
 		    vector<vector<double>> states_pool, seed_states;
 		    vector<double> seed_state;
@@ -170,6 +250,7 @@ int main() {
 	  	    cout<<"sensor output: "<<lane_target_states.size()<<endl;
 		    
 	  	    for(int i = 0 ; i < lane_target_states.size()/7; i++){
+			
 			cout<< "state"<<i<<": \t";
 			cout <<lane_target_states[i*7+0]<<",";
 			cout <<lane_target_states[i*7+1]<<",";
@@ -178,7 +259,7 @@ int main() {
 			cout <<lane_target_states[i*7+4]<<",";
 			cout <<lane_target_states[i*7+5]<<",";
 			cout <<lane_target_states[i*7+6]<<","<<endl;
-
+			
 			seed_state.push_back(lane_target_states[i*7+0]);
 			seed_state.push_back(lane_target_states[i*7+1]);
 			seed_state.push_back(lane_target_states[i*7+2]);
@@ -190,19 +271,21 @@ int main() {
 		        seed_states.push_back(seed_state);
 			seed_state.clear();
 	  	    }
-
+			
 
 		    states_pool = sdc.perturb_goal(seed_states);
-		
-		    for(int i = 0; i<states_pool.size(); i++){
-			cout<<"state pool num "<<i<<": ";
-			for(int j=0; j<states_pool[i].size(); j++){
-		  	    cout<<states_pool[i][j]<<", ";
+
+		    
+		    cout << " states pool"<<endl;
+		    for (int i = 0; i < states_pool.size(); i++){
+			for(int j = 0; j<states_pool[i].size(); j++){
+			    cout<<i<<" : "<<states_pool[i][j];
 			}
-			cout<<endl;
-		    }
-		    cout<<endl;
-		
+		    cout <<endl;
+		    } 
+		    
+
+		    
 
                     //int prev_size = previous_path_x.size();
 		    int path_size = min(RESERVED_PATH_POINT, (int)previous_path_x.size());
@@ -223,9 +306,11 @@ int main() {
 		    // Setup the start and end vectors for s_state and d_state
 		    double s_, s_dot, s_ddot;
 	  	    double d_, d_dot, d_ddot;
-	  	    vector<vector<double>> s_jmt, d_jmt, rampup, cs, smooth_gx, smooth_gy;
+	  	    vector<vector<double>> s_jmt, d_jmt, rampup, cs, cs_s, cs_d, smooth_gx, smooth_gy;
 	    	    vector<double> s_start, s_end, d_start, d_end, xy, xy_, cs_xy_;
 		    vector<double> jmt_ptsx, jmt_ptsy;
+		    vector<double> best_s, best_d;
+		    double best_t;
 		    double next_s, next_d;
 	  	    // sort sensor fusion info by vehicle id
 	  	    map<int, vector<vector<double>>> predictions;
@@ -248,28 +333,37 @@ int main() {
 		    	} 
 		    	cout <<endl;
 
-		    	cout << v_id<<" obs car local s predictions";
+		    	cout << v_id<<" obs car s predictions";
 		    	for (int i = 0; i < preds[0].size(); i++){
 				cout<<": "<<preds[4][i];
 
 		    	} 
 		    	cout <<endl;
 
-		    	cout << v_id<<" obs car local d predictions";
+		    	cout << v_id<<" obs car d predictions";
 		    	for (int i = 0; i < preds[0].size(); i++){
 				cout<<": "<<preds[5][i];
 
 		    	} 
-		    	cout <<endl;*/
+		    	cout <<endl;
+
+			cout << v_id<<" obs car cum t projection";
+
+		    	for (int i = 0; i < preds[0].size(); i++){
+				cout<<": "<<preds[6][i];
+		    	} 
+
+		    	cout <<endl;
+			*/
 
 		    	predictions[v_id] = preds;
 	  	    }
 
 
 
-
                     vector<double> next_x_vals;
                     vector<double> next_y_vals;
+		    int best_traj_idx;
 
 
                     if(path_size < 2) {
@@ -319,8 +413,9 @@ int main() {
 			
 
 				// get waypoints in global coordinate  
-				xy_ = getXY(next_s, next_d, s_x, s_y, s_dx, s_dy);  
-			
+				//xy_ = getXY(next_s, next_d, s_x, s_y, s_dx, s_dy);  
+				Vector2d xy_ = getXY(next_s, next_d, s_x, s_y);
+				/*
 				// get waypoints in car coordinate
 
 				double diff_x = xy_[0] - car_x;
@@ -335,13 +430,13 @@ int main() {
 				double gx = init_lx*cos(angle)-init_ly*sin(angle)+car_x;
 				double gy = init_lx*sin(angle)+init_ly*cos(angle)+car_y;
 
+				*/
+				ptsx.push_back(xy_[0]);
+				ptsy.push_back(xy_[1]);
 
-				ptsx.push_back(gx);
-				ptsy.push_back(gy);
 
-
-  				next_x_vals.push_back(gx);
-				next_y_vals.push_back(gy);
+  				//next_x_vals.push_back(xy_[0]);
+				//next_y_vals.push_back(xy_[1]);
 
 			
 			}
@@ -361,11 +456,12 @@ int main() {
                         //ptsy.push_back(ref_y_prev);
                         //ptsy.push_back(ref_y);
 
-			
+			ptsx.clear();
+			ptsy.clear();
                     	// Keep previously generated points
                     	for(int i = 0; i < path_size; i++) {
-                        	next_x_vals.push_back(previous_path_x[i]);
-                        	next_y_vals.push_back(previous_path_y[i]);
+                        	//next_x_vals.push_back(previous_path_x[i]);
+                        	//next_y_vals.push_back(previous_path_y[i]);
 				ptsx.push_back(previous_path_x[i]);
 				ptsy.push_back(previous_path_y[i]);
                     	}
@@ -380,12 +476,12 @@ int main() {
 
 
 			// for a rolling car, speed at reference point is, 
-			vector<vector<double>> check_dots = sdc.getDOTs(next_x_vals, next_y_vals, car_x, car_y, car_yaw, car_speed);
+			vector<vector<double>> check_dots = sdc.getDOTs(ptsx, ptsy, car_x, car_y, car_yaw, car_speed);
 
 			double ref_s = check_dots[0][path_size-1];
 			double ref_s_dot = check_dots[1][path_size-1];
 
-			cout<<"car_s: "<< car_s <<"ref_s: "<< ref_s <<"ref_s_dot: " << ref_s_dot<< endl;
+			//cout<<"car_s: "<< car_s <<" ref_s: "<< ref_s <<"ref_s_dot: " << ref_s_dot<< endl;
 
 			
 			s_ = car_s + check_dots[0][path_size-1];
@@ -412,20 +508,119 @@ int main() {
 			d_start.push_back(d_dot);
 			d_start.push_back(d_ddot);
 
-			d_end.push_back(d_+target_lane);
+
+			d_end.push_back(d_+target_lane);			
+			//d_end.push_back(2+4*lane);
 			d_end.push_back(d_dot);
+
 			d_end.push_back(d_ddot);
+
+		    	// test out all trajectors
+		    	double lowest_cost=1e6, cost;
+		    	vector<double> s_target, d_target;
+		    	vector<vector<double>> jmt_s, jmt_d;
+		    	vector<double> best_jmt_s, best_jmt_d;
+		    	vector<vector<double>> jmt_pool, best_jmt;
 			
-			//generate constant speed path 
-			cs = sdc.JMT(s_start, s_end, ref_duration);
-			next_d = 2+ 4*lane;
-			cout<<"next_d: "<<next_d<<" next_s: ";
+
+		    
+		    	for(int i = 0; i<states_pool.size(); i++){
+			    //cout<<"Traj num "<<i<<": time_diff cost ";
+			    
+			    s_target.push_back(states_pool[i][0]);
+			    //s_target.push_back(0);
+			    //s_target.push_back(0);
+
+			    s_target.push_back(states_pool[i][1]);
+			    s_target.push_back(states_pool[i][2]);
+			    d_target.push_back(states_pool[i][3]);
+			    //d_target.push_back(0);			    				    //d_target.push_back(0);
+
+			    d_target.push_back(states_pool[i][4]);
+			    d_target.push_back(states_pool[i][5]); 
+
+
+			    jmt_s = sdc.JMT(s_start, s_target, states_pool[i][7]);
+			    jmt_d = sdc.JMT(d_start, d_target, states_pool[i][7]);
+			    vector<double> s_coeffs = sdc.JMT_coeffs(s_start, s_target, states_pool[i][7]);
+		    	    //Long_Safety_Cost(lane, ref_start_time, s_start, s_coeffs, predictions);
+
+
+		  	    //cout<<states_pool[i][j]<<", ";
+			    //cost = time_diff_cost(states_pool[i][6], states_pool[i][7]);
+			    //cost += open_speed_cost(states_pool[i][1]); //
+			    //cost += avg_accel_cost(jmt_s[0]);
+			    cost = 10000*Long_Safety_Cost(lane, ref_start_time, s_start, s_coeffs, predictions);
+
+
+			    if( cost < lowest_cost){
+				best_traj_idx = i;
+				lowest_cost = cost;
+			    }
+			    
+			    //cout<<cost<<";"<<endl;
+		        }
+		        cout<<"lowest cost "<<lowest_cost<<" index "<<best_traj_idx<<endl;
+			
+
+			
+		    	for(int i = 0; i< states_pool[best_traj_idx].size(); i++){
+			    cout<< states_pool[best_traj_idx][i]<<",";
+			   
+		        }
+		        cout<<" keep lane speed "<< states_pool[best_traj_idx][1]*2.24<<endl;
+
+			/*best_s.push_back(states_pool[best_traj_idx][0]);
+			best_s.push_back(states_pool[best_traj_idx][1]);
+			best_s.push_back(states_pool[best_traj_idx][2]);
+			best_d.push_back(states_pool[best_traj_idx][3]);
+			best_d.push_back(states_pool[best_traj_idx][4]);
+			best_d.push_back(states_pool[best_traj_idx][5]);*/
+
+			best_s.push_back(states_pool[best_traj_idx][0]);
+			best_s.push_back(states_pool[best_traj_idx][1]);
+			best_s.push_back(0);
+			best_d.push_back(states_pool[best_traj_idx][3]);
+			best_d.push_back(0);
+			best_d.push_back(0);
+
+
+			best_t = states_pool[best_traj_idx][7];
+		        /*
+			for(int i = 0; i< best_jmt_s.size(); i++){
+			    cout<< best_jmt_d[i]<<",";
+		        }
+		        cout<<endl; 		
+			*/
+
+
 			vector<double> chk_csx, chk_csy;
-			for(int i = 0; i<cs[1].size(); i++){
-				next_s = cs[1][i];
+						
+			// generate constant speed path
+			cs_s = sdc.JMT(s_start, s_end, ref_duration);
+			cs_d = sdc.JMT(d_start, d_end, ref_duration);
+			//cs_s = sdc.JMT(s_start, best_s, best_t);
+			//cs_d = sdc.JMT(d_start, best_d, best_t);
+			//cs = sdc.JMT(s_start, s_end, ref_duration);
+			next_d = 2+ 4*lane;
+			//cout<<"next_d: "<<next_d<<" next_s: ";
+			//cout<<"best_t: "<<best_t<<" ref_duration: "<< ref_duration<< endl;
+			//int min_s = min(cs[1].size(), cs_s[1].size());
+			for(int i = 0; i<cs_s[1].size(); i++){
+				next_s = cs_s[1][i];
+				//next_d = cs_d[1][i];
+				//next_s +=0.45;
+			
+			
+			//for(int i = 0; i< best_jmt_s.size(); i++){
+				//next_s = best_jmt_s[i];
+				//next_d = best_jmt_d[i];
 			
 				// get waypoints in global coordinate  
-				cs_xy_ = getXY(next_s, next_d, s_x, s_y, s_dx, s_dy); 
+				//cs_xy_ = getXY(next_s, next_d, s_x, s_y, s_dx, s_dy); //can't warp around
+				Vector2d cs_xy_ = getXY(next_s, next_d, s_x, s_y); //not that smooth at end
+
+				/*
 				chk_csx.push_back(cs_xy_[0]);
 				chk_csy.push_back(cs_xy_[1]);
 
@@ -441,43 +636,212 @@ int main() {
 				double gx = cs_lx*cos(ref_yaw)-cs_ly*sin(ref_yaw)+ref_x;
 				double gy = cs_lx*sin(ref_yaw)+cs_ly*cos(ref_yaw)+ref_y;
 
-
-				ptsx.push_back(gx);
-				ptsy.push_back(gy);
+				*/
+				ptsx.push_back(cs_xy_[0]);
+				ptsy.push_back(cs_xy_[1]);
  			
-				next_x_vals.push_back(gx);
-				next_y_vals.push_back(gy);
+				//next_x_vals.push_back(cs_xy_[0]);
+				//next_y_vals.push_back(cs_xy_[1]);
  	
 				cout<<next_s<<",";
 			
 			}
-			cout<<" constant speed size: "<< cs[1].size()<<endl;
+			cout<<" constant speed size: "<< cs_s[1].size()<<endl;
 			
 		    }
 
 		
 		    cout<<"s_start: ";
-		    for (int i = 0; i< 3; i++){
-			cout<<s_start[i]<<", ";
+		    for (int i = 0; i< s_start.size(); i++){
+			cout<<s_start[i]<<", "<<ref_duration<<" , ";
 		    }
 		    cout<<endl;
 		    cout<<"s_end: ";
-		    for (int i = 0; i< 3; i++){
-			cout<<s_end[i]<<", ";
+		    for (int i = 0; i< s_end.size(); i++){
+			cout<<s_end[i]<<", "<<ref_duration<<" , ";
 		    }
 		    cout<<endl;
 		    cout<<"d_start: ";
-		    for (int i = 0; i< 3; i++){
-			cout<<d_start[i]<<", ";
+		    for (int i = 0; i< d_start.size(); i++){
+			cout<<d_start[i]<<", "<<ref_duration<<" , ";
 		    }
 		    cout<<endl;
 		    cout<<"d_end: ";
-		    for (int i = 0; i< 3; i++){
-			cout<<d_end[i]<<", ";
+		    for (int i = 0; i< d_end.size(); i++){
+			cout<<d_end[i]<<", "<<ref_duration<<" , ";
+		    }
+		    cout<<endl;
+		    cout<<"best_s_end: ";
+		    for (int i = 0; i< best_s.size(); i++){
+			cout<<best_s[i]<<", "<<best_t<<" , ";
+		    }
+		    cout<<endl;
+		    cout<<"best_d_end: ";
+		    for (int i = 0; i< best_d.size(); i++){
+			cout<<best_d[i]<<", "<<best_t<<" , ";
 		    }
 		    cout<<endl;
 
+		    // Regenerate the path again
+		    
+		    vector<double> m_ptsx, m_ptsy, m_ptss;
+    		    vector<double> f_ptsx, f_ptsy, f_ptss;
+		    double prev_s = s_ - s_dot*DELTA_T;
+		    double m_yaw;
+		    double first_x, before_first_x, first_y, before_first_y, diff_my, diff_mx;
 
+		    if (path_size >= 2) {
+			m_ptss.push_back(prev_s);
+			m_ptsx.push_back(previous_path_x[path_size-2]);
+			m_ptsy.push_back(previous_path_y[path_size-2]);
+			m_ptss.push_back(s_);
+			m_ptsx.push_back(previous_path_x[path_size-1]);
+			m_ptsy.push_back(previous_path_y[path_size-1]);
+			
+			first_x = (previous_path_x[path_size-1]);
+			before_first_x = (previous_path_x[path_size-2]);
+			first_y = (previous_path_y[path_size-1]); 
+			before_first_y = (previous_path_y[path_size-2]);
+			diff_mx = first_x - before_first_x;
+			diff_my = first_y - before_first_y;
+			m_yaw = atan2(diff_my, diff_mx);
+		    } else {
+			double prev_s = car_s - 1;
+			double prev_x = car_x - 1*cos(angle);
+			double prev_y = car_y - 1*sin(angle);
+			first_x = car_x;
+			first_y = car_y;
+			m_ptss.push_back(prev_s);
+			m_ptsx.push_back(prev_x);
+			m_ptsy.push_back(prev_y);
+			m_ptss.push_back(s_);
+			m_ptsx.push_back(car_x);
+			m_ptsy.push_back(car_y);
+		    }
+
+		    // last two points of coarse trajectory, use target_d and current s + 30,60
+		    double target_s1 = s_ + 30;
+		    double target_d1 = states_pool[best_traj_idx][3];
+		    vector<double> target_xy1 = getXY(target_s1, target_d1, s_x, s_y, s_dx, s_dy);
+		    //vector<double> target_xy1 = getXY(target_s1, target_d1, interpolated_waypoints_s, interpolated_waypoints_x, interpolated_waypoints_y);
+		    double target_x1 = target_xy1[0];
+		    double target_y1 = target_xy1[1];
+		    m_ptss.push_back(target_s1);
+		    m_ptsx.push_back(target_x1);
+		    m_ptsy.push_back(target_y1);
+
+
+		    double target_s2 = target_s1 + 30;
+		    double target_d2 = target_d1;
+		    vector<double> target_xy2 = getXY(target_s2, target_d2, s_x, s_y, s_dx, s_dy);
+		    //vector<double> target_xy2 = getXY(target_s2, target_d2, interpolated_waypoints_s, interpolated_waypoints_x, interpolated_waypoints_y);
+		
+		    double target_x2 = target_xy2[0];
+		    double target_y2 = target_xy2[1];
+		    vector<double> mc_ptsx, mc_ptsy;
+		    m_ptss.push_back(target_s2);
+		    m_ptsx.push_back(target_x2);
+		    m_ptsy.push_back(target_y2);
+		
+		    /*cout<<" m points array ";
+		    for(int i = 0; i<m_ptss.size(); i++){
+			cout<<m_ptss[i]<<", ";
+			cout<<m_ptsx[i]<<", ";
+			cout<<m_ptsy[i]<<", ";
+		    }
+		    cout<<endl;*/
+		    // convert to car local coordinate system
+		    for (int i = 0; i < m_ptsx.size(); ++i){
+			double dx = m_ptsx[i]-first_x;
+			double dy = m_ptsy[i]-first_y;
+			mc_ptsx.push_back(dx*cos(m_yaw) + dy*sin(m_yaw));
+			mc_ptsy.push_back(-dx*sin(m_yaw)+ dy*cos(m_yaw));
+		    }
+		
+		    tk::spline s;
+
+		    s.set_points(mc_ptsx, mc_ptsy);
+
+		    for(int i = 0; i < path_size; i++) {
+		    	next_x_vals.push_back(previous_path_x[i]);
+		    	next_y_vals.push_back(previous_path_y[i]);
+		    } 
+		
+
+
+
+		    double target_v = max(states_pool[best_traj_idx][1], 13.0);
+		    double current_s = s_;
+		    double current_v = s_dot;
+		    double current_a = s_ddot;
+		    double target_hx = 30;
+		    double target_hy = s(target_hx);
+		    double target_hd = sqrt(target_hx*target_hy + target_hy*target_hy);
+		    double x_inc = 0;
+
+
+		    // lane 0 speed limit reduced, 
+		    if (target_d1 <4 && target_d1 > 0 ){
+			current_v *= 0.95;
+		    }
+
+		    for (int i = 0; i< 100-path_size; i++){
+
+			/*
+			double N = target_hd/(DELTA_T*target_v);
+			double x_point = x_inc + (target_hx/N);
+			double y_point = s(x_point);
+			
+			x_inc = x_point;*/
+		   
+			
+			double v_inc=0;
+			double diff_v = target_v - current_v;
+			if (fabs(diff_v) >=2 * VELOCITY_INCREMENT_LIMIT){
+			  v_inc = (diff_v)/(fabs(diff_v))*VELOCITY_INCREMENT_LIMIT;
+			}
+			current_v += v_inc;
+			current_s += current_v*DELTA_T;
+			double x_point = x_inc + current_v*DELTA_T;
+			double y_point = s(x_point);
+			x_inc = x_point;
+			
+			// convert back to global coordinate
+			double x_ref = x_point;
+              		double y_ref = y_point;
+
+              		x_point = (x_ref*cos(m_yaw)-y_ref*sin(m_yaw));
+              		y_point = (x_ref*sin(m_yaw)+y_ref*cos(m_yaw));
+
+              		x_point += first_x;
+              		y_point += first_y;
+
+			//cout <<"x_point: "<< x_point << "y_point: "<<y_point<<endl; 
+
+			
+
+              		next_x_vals.push_back(x_point);
+             		next_y_vals.push_back(y_point);
+
+			//f_ptsx.push_back(x_point);
+			//f_ptsy.push_back(y_point);
+			//f_ptss.push_back(current_s);
+		    }
+		    /*
+		    f_ptsx = interpolate_points(m_ptss, m_ptsx, f_ptss);
+		    f_ptsy = interpolate_points(m_ptss, m_ptsy, f_ptss);
+				
+
+			
+		    // add xy points from newly generated path
+		    for (int i = 0; i < f_ptss.size(); i++) {
+			//if (subpath_size == 0 && i == 0) continue; // maybe skip start position as a path point?
+		    	//next_x_vals.push_back(f_ptsx[i]);
+		    	//next_y_vals.push_back(f_ptsy[i]);
+                    } 
+		    cout <<"car_x "<< car_x <<"car_y "<< car_y<<endl;*/
+
+		    counter += 1;
 
                     json msgJson;
                     msgJson["next_x"] = next_x_vals;

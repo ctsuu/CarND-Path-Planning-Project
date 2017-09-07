@@ -36,7 +36,8 @@ vector<double> state_in(vector<double> start_state, double t){
   return state; 
 }
 
-double eval_poly_equation(vector<double> coeffs, double t){
+
+double eval_at(vector<double> coeffs, double t){
     // given all coeffs, evaluate the polynormial equation at time f(t)
     /*
     
@@ -55,6 +56,49 @@ double eval_poly_equation(vector<double> coeffs, double t){
 }
 
 
+
+double dot(tk::spline func, double x){
+  // get first derivative for a spline curve at point x
+  double dx=1e-8*(1.0+fabs(x));
+  double x0=x-dx;
+  double x2=x+dx;
+  return (func(x2)-func(x0)) / (2.0*dx);
+}
+
+
+vector<double> dot(vector<double> traj) {
+  // given a trajectory (s0, s1, s2 ... sn), return the average velocity in between
+  vector<double> one_dot;
+  for (int i = 1; i < traj.size(); i++) {
+    one_dot.push_back((traj[i] - traj[i-1]) / DELTA_T);
+  }
+  return one_dot;
+}
+
+
+vector<double> get_dot_coeffs(vector<double> coeffs){
+  // given all coeffs of a polynomial, calculates the derivative of it and returns the corresponding coefficients.
+  /*
+  new_cos = []
+  for deg, prev_co in enumerate(coefficients[1:]):
+    new_cos.append((deg+1) * prev_co)
+    #print(new_cos)
+  return new_cos
+  */
+	
+  vector<double> new_coeffs;
+  for (int i =1; i< coeffs.size(); i++){
+    new_coeffs.push_back(coeffs[i]*i);
+  }
+  return new_coeffs;
+}
+
+
+
+
+
+
+
 double nearest_approach(vector<double> traj_x, vector<double> traj_y, vector<vector<double>> prediction) {
 
   // traj_x, traj_y, are list of local points{lx0, lx1, ...ly9}, and {ly0, ly1, ... ly9}  
@@ -71,7 +115,7 @@ double nearest_approach(vector<double> traj_x, vector<double> traj_y, vector<vec
 
 
 
-double cs_nearest_approach(vector<vector<double>> traj, vector<double> car_state){
+double nearest_approach(vector<vector<double>> traj, vector<double> car_state){
   // giving testing trajecory s_coeffs, d_coeffs, t combo package
   // any vehicle current state {s, s_dot, s_d_dot, d, d_dot, d_d_dot, and duration T}:
   // output: the closest dist between the testing trajecory and other cars projected path. 
@@ -82,8 +126,8 @@ double cs_nearest_approach(vector<vector<double>> traj, vector<double> car_state
   vector<double>t_ = traj[2];
    for(int i = 1; i < 100; i++){
         double t = i / 100 * t_[0];
-        double cur_s = eval_poly_equation(s_, t); // s coordinate value at time t
-        double cur_d = eval_poly_equation(d_, t); // d coordinate value at time t
+        double cur_s = eval_at(s_, t); // s coordinate value at time t
+        double cur_d = eval_at(d_, t); // d coordinate value at time t
 
 	// giving sdc car's s and d states value
 	vector<double> target = state_in(car_state, t);
@@ -133,6 +177,44 @@ double nearest_approach_to_any_vehicle_in_lane(vector<double> s_traj, vector<dou
 }
 
 
+double Long_Safety_Cost(int lane, double start_time, vector<double> start_state, vector<double> coeffs, map<int,vector<vector<double>>> predictions) {
+  // Determines the nearest the vehicle comes to any other vehicle throughout a trajectory
+  double closest = 999999, cost, dist;
+  int closest_idx;
+  for (auto prediction : predictions) {
+    vector<vector<double>> pred_traj = prediction.second;
+    vector<double> obs_s = pred_traj[4];
+    double pred_d = pred_traj[5][0];
+    vector<double> timeline = pred_traj[6];
+    vector<double> sdc_state = state_in(start_state, start_time);
+    vector<double> sdc_s, s_diff;
+    // check the obs in this lane only
+    if(pred_d <4*(lane+1) && pred_d > 4*lane){
+      //cout << "what is the predicted s value from reference time up to t : "<< prediction.first<< " : "<<endl;
+      for (auto t: timeline){
+	//cout << t << ", ";
+        sdc_s.push_back(eval_at(coeffs, start_time+t));
+      }
+      for (int i = 0; i < sdc_s.size(); ++i){
+	double diff_s = (obs_s[i]-sdc_s[i]);
+	if(abs(diff_s) < closest){
+	  closest = abs(diff_s);
+	  closest_idx = prediction.first;
+	  cost = 1-1.0/(1+exp(-closest));
+          dist = diff_s;
+	}
+      }
+      //cout<<1/cost<< endl;
+    }
+    //cout<< "closest vid "<< closest_idx << " distance "<<  dist<<endl;
+  }
+
+  //cout<< "closest vid "<< closest_idx << " distance_cost "<<  cost<<" in lane"<<lane <<endl;
+  return cost;
+}
+
+
+
 vector<double> velocities_for_trajectory(vector<double> traj) {
   // given a trajectory (a vector of positions), return the average velocity between each pair as a vector
   // also can be used to find accelerations from velocities, jerks from accelerations, etc.
@@ -145,34 +227,6 @@ vector<double> velocities_for_trajectory(vector<double> traj) {
 }
 
 
-
-vector<double> differentiate_t(vector<double> traj) {
-  // given a trajectory (a vector of positions), return the average velocity between each pair as a vector
-  // also can be used to find accelerations from velocities, jerks from accelerations, etc.
-  // (i.e. discrete derivatives)
-  vector<double> one_dot;
-  for (int i = 1; i < traj.size(); i++) {
-    one_dot.push_back((traj[i] - traj[i-1]) / DELTA_T);
-  }
-  return one_dot;
-}
-
-vector<double> differentiate_s(vector<double> coeffs){
-    // given all coeffs of a polynomial, calculates the derivative of it and returns the corresponding coefficients.
-    /*
-    new_cos = []
-    for deg, prev_co in enumerate(coefficients[1:]):
-        new_cos.append((deg+1) * prev_co)
-        #print(new_cos)
-    return new_cos
-    */
-	
-    vector<double> s_dot;
-    for (int i =1; i< coeffs.size(); i++){
-      s_dot.push_back(coeffs[i]*i);
-    }
-    return s_dot;
-}
 
 
 
@@ -214,6 +268,7 @@ double s_diff_cost(vector<vector<double>> traj, vector<double> target_vel,vector
   vector<double> est = state_in(target_vel, t); 
   vector<double> est_s; // with safety buffer zone
   // add the delta state( safety buffer zone) 
+
   for (int i =0; i< est.size(); i++){
 	est_s.push_back(target_vel[i]-delta[i]);
   }
@@ -221,12 +276,12 @@ double s_diff_cost(vector<vector<double>> traj, vector<double> target_vel,vector
   // the projected {s, s_dot, s_d_dot} at time t by given trajectory
   
 
-  s_dot_coeffs = differentiate_s(s_coeffs);
-  s_d_dot_coeffs = differentiate_s(s_dot_coeffs);
+  s_dot_coeffs = get_dot_coeffs(s_coeffs);
+  s_d_dot_coeffs = get_dot_coeffs(s_dot_coeffs);
 
-  s = eval_poly_equation(s_coeffs,t);
-  s_dot = eval_poly_equation(s_dot_coeffs,t);
-  s_d_dot = eval_poly_equation(s_d_dot_coeffs,t);
+  s = eval_at(s_coeffs,t);
+  s_dot = eval_at(s_dot_coeffs,t);
+  s_d_dot = eval_at(s_d_dot_coeffs,t);
 
   
   cost += logistic(fabs(s - est_s[0]) / SIGMA_S);
@@ -247,20 +302,15 @@ double d_diff_cost(vector<vector<double>> traj, vector<double> target_vel, vecto
   double t = traj[2][0];
   vector<double> est = state_in(target_vel, t); 
   vector<double> est_d; // with safety buffer zone
-  // add the delta state( safety buffer zone) 
-  for (int i =0; i< est.size(); i++){
-	est_d.push_back(target_vel[i]-delta[i]);
-  }
-    
-  // the projected {s, s_dot, s_d_dot} at time t by given trajectory
-  
+   
+  // the projected {d, d_dot, d_d_dot} at time t by given trajectory
 
-  d_dot_coeffs = differentiate_s(d_coeffs);
-  d_d_dot_coeffs = differentiate_s(d_dot_coeffs);
+  d_dot_coeffs = get_dot_coeffs(d_coeffs);
+  d_d_dot_coeffs = get_dot_coeffs(d_dot_coeffs);
 
-  d = eval_poly_equation(d_coeffs,t);
-  d_dot = eval_poly_equation(d_dot_coeffs,t);
-  d_d_dot = eval_poly_equation(d_d_dot_coeffs,t);
+  d = eval_at(d_coeffs,t);
+  d_dot = eval_at(d_dot_coeffs,t);
+  d_d_dot = eval_at(d_d_dot_coeffs,t);
 
   
   cost += logistic(fabs(d - est_d[0]) / SIGMA_D);
@@ -430,7 +480,8 @@ double blind_spot_cost(vector<double> s_traj, double T) {
   return blind_spot(T);
 }
 
-double open_speed_cost(vector<double> s_traj, double speed) {
+double open_speed_cost(double speed) {
+  //double open_speed_cost(vector<double> s_traj, double speed) {
   // penalize the max car speed in a giving traj is close to or exceed speed limit, or too slow in traffic
   vector<double> ptsx = {0, 10, 20, 30, 40, 45, 48, 49, 50, 60, 80};
   vector<double> ptsy = {0.4, 0.3, 0.2, 0.1, 0.1, 0.1, 0.5, 0.6, 1, 1, 1};

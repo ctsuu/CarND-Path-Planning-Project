@@ -13,7 +13,7 @@
 #include <algorithm>
 #include "Eigen-3.3/Eigen/Dense"
 #include "spline.h"
-
+tk::spline s_x, s_y, s_dx, s_dy;
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
 using namespace std;
@@ -32,11 +32,16 @@ Vehicle::Vehicle(double s, double s_d, double s_dd, double d, double d_d, double
     this->d    = d;             // d position
     this->d_d  = d_d;           // d dot - velocity in d
     this->d_dd = d_dd;          // d dot-dot - acceleration in d
-    state = "CS";
 
+    state = "KL";   
+    // all available states are: "KL", "PLCL", "LCL", "PLCR", "LCR"
+    isInitialized = false;
+    // use first measurement to update each vehicle
 }
 
 Vehicle::~Vehicle() {}
+
+
 
 double Vehicle::distance4(double x1, double y1, double x2, double y2)
 {
@@ -225,6 +230,14 @@ vector<double> Vehicle::get_target_state(vector<vector<double>> sensor_fusion, i
 		sf_s = sensor_fusion[i][5];
 		sf_d = sensor_fusion[i][6];
 		
+		while (sf_s > TRACK_LENGTH){
+		    sf_s -= TRACK_LENGTH;
+		}
+
+		while (sf_s <0){
+		    sf_s += TRACK_LENGTH;
+		} 
+
 		double sf_xt1 = sf_x+(0.02*sf_vx); 
 		double sf_yt1 = sf_y+(0.02*sf_vy);
 		double sf_heading = atan2(sf_yt1-sf_y,sf_xt1-sf_x); 
@@ -291,9 +304,16 @@ vector<double> Vehicle::get_target_state(vector<vector<double>> sensor_fusion, i
 			//available_lane.push_back(i);
 			target_d = 2+4*i;
 			
-			target_s_dot = car_v;
-			target_t = closest_car*0.9;
-			target_s = car_s + car_v*target_t;
+			target_s_dot = min(car_v, SPEED_LIMIT*0.9);
+			target_t = min(closest_car*0.9, following_gap);
+			target_s = car_s + target_s_dot *target_t;
+
+			while (target_s > TRACK_LENGTH){
+			    target_s -=TRACK_LENGTH;
+			}
+			while (target_s <0){
+			    target_s += TRACK_LENGTH;
+			}
 			
 			results.push_back(target_s);
 			results.push_back(target_s_dot);
@@ -308,11 +328,17 @@ vector<double> Vehicle::get_target_state(vector<vector<double>> sensor_fusion, i
 			cout << "too close, keep lane " << endl;
 			too_close = true;
 			target_d = 2+4*my_lane;
-			target_s_dot = car_v*0.6; //slow down
+			target_s_dot = min(sf_s_dot*0.6, SPEED_LIMIT*0.6); //slow down
 			target_t = closest_car*0.8;
-			target_s = car_s + car_v*target_t-15; 
+			target_s = car_s + target_s_dot*target_t; 
 
-			
+			while (target_s > TRACK_LENGTH){
+			    target_s -=TRACK_LENGTH;
+			}
+			while (target_s <0){
+			    target_s += TRACK_LENGTH;
+			}
+
 			results.push_back(target_s);
 			results.push_back(target_s_dot);
 			results.push_back(0);
@@ -765,6 +791,55 @@ vector<vector<double>> Vehicle::JMT(vector< double> start, vector <double> end, 
 }
 
 
+// JMT Coeffs only
+vector<double> Vehicle::JMT_coeffs(vector< double> start, vector <double> end, double T)
+{
+    /*
+    Calculate the Jerk Minimizing Trajectory that connects the initial state
+    to the final state in time T.
+
+    INPUTS
+
+    start - the vehicles start location given as a length three array
+        corresponding to initial values of [s, s_dot, s_double_dot]
+
+    end   - the desired end state for vehicle. Like "start" this is a
+        length three array.
+
+    T     - The duration, in seconds, over which this maneuver should occur.
+
+    OUTPUT 
+    an array of length 6, each value corresponding to a coefficent in the polynomial 
+    s(t) = a_0 + a_1 * t + a_2 * t**2 + a_3 * t**3 + a_4 * t**4 + a_5 * t**5
+
+    EXAMPLE
+
+    > JMT( [0, 10, 0], [10, 10, 0], 1)
+    [0.0, 10.0, 0.0, 0.0, 0.0, 0.0]
+    */
+    
+    MatrixXd A = MatrixXd(3, 3);
+    A <<   T*T*T, T*T*T*T, T*T*T*T*T,
+	 3*T*T, 4*T*T*T, 5*T*T*T*T,
+	 6*T,  12*T*T,  20*T*T*T;
+		
+    MatrixXd B = MatrixXd(3,1);	    
+    B << end[0]-(start[0]+start[1]*T+.5*start[2]*T*T),
+	 end[1]-(start[1]+start[2]*T),
+	 end[2]-start[2];
+			    
+    MatrixXd Ai = A.inverse();
+	
+    MatrixXd C = Ai*B;
+    vector <double> coeffs = {start[0], start[1], .5*start[2]};
+
+    for(int i = 0; i < C.size(); i++){
+      coeffs.push_back(C.data()[i]);
+    }
+    return coeffs;
+    
+}
+
 vector<vector<double>> Vehicle::get_best_frenet_trajectory(map<int, vector<vector<double>>> predictions, double duration) {
     
     // NOTE: THIS METHOD IS FROM AN ALTERNATE IMPLEMENTATION AND NO LONGER USED
@@ -1029,6 +1104,7 @@ vector<vector<double>> Vehicle::perturb_goal(vector<vector<double>> seed_states)
     std::default_random_engine gen;
     for(int n=0; n<TRAJ_SAMPLES; n++) {	
       for(int i =0; i<seed_states.size(); i++){
+
     	// Uncertainty generators for s, d, t around seed state mean
     	std::normal_distribution<double> ndist_s(seed_states[i][0], SIGMA_S); 
     	std::normal_distribution<double> ndist_s_dot(seed_states[i][1], SIGMA_S_DOT); 
@@ -1040,13 +1116,23 @@ vector<vector<double>> Vehicle::perturb_goal(vector<vector<double>> seed_states)
 
     	std::normal_distribution<double> ndist_t(seed_states[i][6], SIGMA_T); 
 	
-  	
-    	new_goal.push_back(abs(ndist_s(gen))); // always generate forward path
+	
+	double nd_s = abs(ndist_s(gen));// always generate forward path
+	    while (nd_s > TRACK_LENGTH){
+		    nd_s -= TRACK_LENGTH;
+	    }
+
+	    //while (nd_s <0){
+		//    nd_s += TRACK_LENGTH;
+	    //} 
+
+    	new_goal.push_back(nd_s); 
     	new_goal.push_back(ndist_s_dot(gen)); 
     	new_goal.push_back(ndist_s_ddot(gen)); 
     	new_goal.push_back(ndist_d(gen)); 
     	new_goal.push_back(ndist_d_dot(gen)); 
         new_goal.push_back(ndist_d_ddot(gen));
+        new_goal.push_back(seed_states[i][6]); // keep org duration for cost function
 	new_goal.push_back(abs(ndist_t(gen))); // always generate future value 
     
 	results.push_back(new_goal);
@@ -1119,12 +1205,13 @@ vector<vector<double>> Vehicle::generate_predictions(double traj_start_time, dou
     // trajectories of other cars starting at that time.
 
     vector<vector<double>> predictions;
-    vector<double> sf_gcx, sf_gcy, sf_lcx, sf_lcy, sf_s, sf_d;
-    
-    for( int i = 0; i < TRAJ_SAMPLES; i++)
+    vector<double> sf_gcx, sf_gcy, sf_lcx, sf_lcy, sf_s, sf_d, sf_t;
+    double cum_t = 0;
+    for( int i = 0; i < COST_SAMPLES; i++)
     {
         //double t = traj_start_time + (i * duration/TRAJ_SAMPLES);
-	double t = i*(traj_start_time + duration)/TRAJ_SAMPLES;
+        double t = traj_start_time + (i * COST_DT);
+	//double t = i*(traj_start_time + duration)/TRAJ_SAMPLES;
         double new_s = this->s + this->s_d * t;
 	//vector<double> s_and_d = {new_s, this->d}; 
 	// assuming the car in the same lane
@@ -1137,6 +1224,8 @@ vector<vector<double>> Vehicle::generate_predictions(double traj_start_time, dou
         vector<double> gclc = getGC_LC(car_x, car_y, theta, gcxy[0], gcxy[1]);
 	sf_lcx.push_back(gclc[0]);
 	sf_lcy.push_back(gclc[1]);
+	sf_t.push_back(cum_t);
+	cum_t += COST_DT;
 
     }
     predictions.push_back(sf_gcx);
@@ -1146,6 +1235,7 @@ vector<vector<double>> Vehicle::generate_predictions(double traj_start_time, dou
 
     predictions.push_back(sf_s);
     predictions.push_back(sf_d);
+    predictions.push_back(sf_t);
     return predictions;
 }
 

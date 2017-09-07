@@ -8,9 +8,15 @@
 #include "spline.h"
 #include "constants.h"
 #include <math.h>
+#include "Eigen-3.3/Eigen/Core"
+#include "Eigen-3.3/Eigen/QR"
+#include "Eigen-3.3/Eigen/Dense"
 
+
+tk::spline s_x, s_y, s_dx, s_dy;
 using namespace std;
 
+using Eigen::Vector2d;
 
 
 // For converting back and forth between radians and degrees.
@@ -26,14 +32,61 @@ double distance(double x1, double y1, double x2, double y2)
 	return sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1));
 }
 
+int ClosestWaypoint(double x, double y, vector<double> maps_x, vector<double> maps_y)
+{
+
+	double closestLen = 100000; //large number
+	int closestWaypoint = 0;
+
+	for(int i = 0; i < maps_x.size(); i++)
+	{
+		double map_x = maps_x[i];
+		double map_y = maps_y[i];
+
+		//cout << "map x: "<< map_x <<";"<<"Map_y : "<< map_y << endl;
+		double dist = distance(x,y,map_x,map_y);
+		if(dist < closestLen)
+		{
+			closestLen = dist;
+			closestWaypoint = i;
+		}
+
+	}
+
+	return closestWaypoint;
+
+}
 
 
+int NextWaypoint(double x, double y, double theta, vector<double> maps_x, vector<double> maps_y)
+{
 
-/*
+	int closestWaypoint = ClosestWaypoint(x,y,maps_x,maps_y);
+
+	double map_x = maps_x[closestWaypoint];
+	double map_y = maps_y[closestWaypoint];
+
+	double heading = atan2( (map_y-y),(map_x-x) );
+
+	// add new line
+	// double theta_pos = fmod(theta + (2*pi()),2*pi());     
+	// double heading_pos = fmod(heading + (2*pi()),2*pi());
+
+	double angle = abs(theta-heading);
+	// cout << "map x: "<< map_x <<";\t"<<"Map_y : "<< map_y << endl;
+	if(angle > M_PI/4)
+	//if(angle > pi()/2)
+	{
+		closestWaypoint++;
+	}
+
+	return closestWaypoint;
+
+}
 
 
 // Transform from Cartesian x,y coordinates to Frenet s,d coordinates
-vector<double> getFrenet_org(double x, double y, double theta, vector<double> maps_x, vector<double> maps_y)
+vector<double> getFrenet(double x, double y, double theta, vector<double> maps_x, vector<double> maps_y)
 {
 	int next_wp = NextWaypoint(x,y, theta, maps_x,maps_y);
 	int prev_wp;
@@ -70,8 +123,8 @@ vector<double> getFrenet_org(double x, double y, double theta, vector<double> ma
 	return {frenet_s,frenet_d};
 }
 
-*/
-/*
+
+
 // Transform from Frenet s,d coordinates to global Cartesian x,y
 vector<double> getXY(double s, double d, vector<double> maps_s, vector<double> maps_x, vector<double> maps_y)
 {
@@ -92,9 +145,6 @@ vector<double> getXY(double s, double d, vector<double> maps_s, vector<double> m
 	return {x,y};
 }
 
-*/
-
-
 
 // Transform from Frenet s,d coordinates to Cartesian x,y
 vector<double> getXY(double s, double d, tk::spline s_x, tk::spline s_y, tk::spline s_dx, tk::spline s_dy) {
@@ -106,6 +156,109 @@ vector<double> getXY(double s, double d, tk::spline s_x, tk::spline s_y, tk::spl
     double y = path_y + d * dy;
     return {x,y};
 }
+
+// get first derivative for a spline curve at point x
+double deriv1(tk::spline func, double x){
+    double dx=1e-8*(1.0+fabs(x));
+    double x0=x-dx;
+    double x2=x+dx;
+    return (func(x2)-func(x0)) / (2.0*dx);
+}
+
+// get second derivative for a spline curve at point x
+double deriv2(tk::spline func, double x){
+    double dx=1e-6*(1.0+fabs(x));
+    double x0=x-dx;
+    double x2=x+dx;
+    return (func(x0)-2.0*func(x)+func(x2)) / (dx*dx);
+}
+
+
+double Error(const Eigen::Vector2d& p, double s, tk::spline s_x, tk::spline s_y ){
+    return pow(p(0) - s_x(s), 2) + pow(p(1) - s_y(s), 2);
+}
+
+
+double ErrorDeriv(const Eigen::Vector2d& p, double s, tk::spline s_x, tk::spline s_y){
+  return -2.0 * (p(0) - s_x(s)) * deriv1(s_x, s)
+         - 2.0 * (p(1) - s_y(s)) * deriv1(s_y,s);
+}
+
+Vector2d GetNormalAt(double s, tk::spline s_x, tk::spline s_y )
+{
+  return Vector2d(deriv1(s_y, s), -deriv1(s_x, s));
+  //return Vector2d(-deriv1(s_y, s), deriv1(s_x, s));
+}
+
+
+
+Vector2d getFrenet(const Eigen::Vector2d& p, double aStartS, tk::spline s_x, tk::spline s_y, tk::spline s_dx, tk::spline s_dy)
+{
+  // Perform gradient descent in order to find the point on the spline that is closest to p:
+  const double eps = 1.0e-6;
+  double s = aStartS;
+  const double kGamma = 0.001;
+  const double kPrecision = 0.001;
+
+
+  double PreviousStepSize = s;
+
+  while (PreviousStepSize > kPrecision)
+  {
+    const double next_s = s - kGamma * ErrorDeriv(p, s, s_x, s_y);
+    PreviousStepSize = std::abs(next_s - s);
+    s = next_s;
+    while (s > TRACK_LENGTH)
+    {
+      s -= TRACK_LENGTH;
+    }
+
+    while (s < 0)
+    {
+      s += TRACK_LENGTH;
+    }
+    // cout <<s<<", ";
+  }
+
+  double x_est = s_x(s);
+  double y_est = s_y(s);
+  double x_diff = p[0] - x_est;
+  double y_diff = p[1] - y_est;
+  double dx = s_dx(s);
+  double dy = s_dy(s);
+  double d_mag = sqrt(pow(dx,2)+pow(dy,2));
+  dx = dx / d_mag;
+  dy = dy / d_mag;
+  double d = dx * x_diff + dy * y_diff;
+
+
+  // From the established point on the spline find the offset vector to the target
+  // point and do a component-wise divide by the normal vector:
+  // const Vector2d p_spline(s_x(s), s_y(s));
+  // const Vector2d p_delta = (p - p_spline).array() / GetNormalAt(s, s_x, s_y).array();
+
+  // Use the mean of the two resulting components as the d-coordinate:
+  // const double d = 0.5 * (p_delta(0) + p_delta(1));
+  return Vector2d(s, d);
+}
+
+
+
+
+Vector2d getXY(double s, double d, tk::spline s_x, tk::spline s_y){
+  while (s > TRACK_LENGTH)
+  {
+    s -= TRACK_LENGTH;
+  }
+
+  while (s < 0)
+  {
+    s += TRACK_LENGTH;
+  }
+
+  return Vector2d(s_x(s), s_y(s)) + GetNormalAt(s, s_x, s_y) * d;
+}
+
 
 
 
@@ -238,7 +391,7 @@ vector<vector<double>> getAccCurve (double car_s, double car_speed, int my_lane)
 
 
 // smooth extended path
-vector<double> path_extender(vector<double> pts_x, vector<double> pts_y, double start,
+vector<double> interpolate_points(vector<double> pts_x, vector<double> pts_y, double start,
                                   double interval, int output_size) {
   // uses the spline library to interpolate points connecting a series of x and y values
   // output is output_size number of y values beginning at y[0] with specified fixed interval
@@ -276,198 +429,9 @@ vector<double> interpolate_points(vector<double> pts_x, vector<double> pts_y,
   }
   return output;
 }
-/*
-// sensor fusion data processing
-vector<double> sensor(vector<vector<double>> sensor_fusion, int my_lane, double car_v, double car_s, double car_d, vector<double> map_waypoints_x, vector<double> map_waypoints_y){
-	/* Given sensor fusion in format{ sf_id, sf_x, sf_y, sf_vx, sf_vy, sf_s, sf_d}
-
-	calculate the missing sf_s_dot, sf_s_d_dot, sf_d_dot, sf_d_d_dot, 
-	sf_lead_time( how far other car ahead or behind my car
-	sf_lane ( which lane other cars are in)
- 
-	Return Target position in next few seconds.
-	Format:{s, s_dot, s_d_dot, d, d_dot, d_d_dot, T} for JMT input. 
-	
-
-	vector<vector<double>>same_lane;
-	vector<double> target_time;
-	vector<double> dummy_car; 
-	int sf_id;
-	double sf_x; 
-	double sf_y;
-	double sf_vx;
-	double sf_vy;
-	double sf_s;
-	double sf_s_dot;
-	double sf_s_d_dot = 0; 
-	double sf_d;
-	double sf_d_dot;
-	double sf_d_d_dot = 0;  
-
-	
-	double target_s; // car lead s
-	double target_s_dot; // car lead s_dot
-	double target_s_d_dot; // car lead s_d_dot
-	double target_d; // car lead d
-	double target_d_dot; // car lead d_dot
-	double target_d_d_dot; // car lead d_d_dot
-	double target_t = 2.5; // initial lane following gap in sec
-	int target_lane = my_lane; // initial lane following
-	int target_id; // car id
-
-	double check_car_s; 
-	double check_car_d;
-	double self_car_s;
-
-	vector<double> start_state;
-	
-	vector<double> check_car_state_in;
-
-	double lead_s; // in meter
-	double lead_t; // in second
-
-	int sf_lane;
-
-	bool left_lane_clear = true;
-	bool right_lane_clear = true;
-	bool too_close = false;
-	bool lane_keep = true;
-	bool prepare_left_lane_change = false;
-	bool prepare_right_lane_change = false;
-
-	// for the car in my lane, check the following time, unit in second 
-	double front_safety_gap = 2.0;   
-	double back_safety_gap = 2.0; 
-	double following_gap = 2.0; // for curise following 
-
-	std::map<double, double> lane_map0;
-	std::map<double, double> lane_map1;
-	std::map<double, double> lane_map2;
-
-	vector<double> lane1;
-        vector<double> lane2;
-        vector<double> lane3;
-        vector<vector<double>> lanes;
-	lanes.push_back(lane1);
-        lanes.push_back(lane2);
-        lanes.push_back(lane3);
-	vector<double> available_lane;
-	vector<double> results;
 
 
-	// if target car is too far, create a dummy car in close range, such as 3-5 seconds
-	
-	for (int i = 0; i < sensor_fusion.size(); i++){
-		sf_id = sensor_fusion[i][0];
-		sf_x = sensor_fusion[i][1];
-		sf_y = sensor_fusion[i][2];
-		sf_vx = sensor_fusion[i][3];
-		sf_vy = sensor_fusion[i][4];
-		sf_s = sensor_fusion[i][5];
-		sf_d = sensor_fusion[i][6];
-		
-		double sf_xt1 = sf_x+(0.02*sf_vx); 
-		double sf_yt1 = sf_y+(0.02*sf_vy);
-		double sf_heading = atan2(sf_yt1-sf_y,sf_xt1-sf_x); 
-		vector<double> sf_frenet = getFrenet_org(sf_xt1, sf_yt1, sf_heading,map_waypoints_x, map_waypoints_y);  
-					
-		sf_s_dot = (sf_frenet[0]-sf_s)/0.02;
-		sf_d_dot = (sf_frenet[1]-sf_d)/0.02;
-		
-		start_state.push_back(sf_s);
-		start_state.push_back(sf_s_dot);
-		start_state.push_back(0);  // assume constant accelection 0
-		start_state.push_back(sf_d);
-		start_state.push_back(sf_d_dot);
-		start_state.push_back(0); // assume constant accelection 0
 
-		//check_car_state_in = state_in(start_state, 1); // state after 1 sec
-		
-
-		// double check_speed = sqrt(sf_vx*sf_vx+sf_vy*sf_vy); // m/s
-		//check_car_s = check_car_state_in[0];
-		//check_car_d = check_car_state_in[3];
-		//self_car_s = sf_s + sf_s_dot*1;	
-		
-		// lead time from any car, in seconds
-					
-		// simply projected car_s and car_d 50 steps for 1 second 
-		//check_car_s += (50*0.02*sf_s_dot); 
-		//check_car_d += (50*0.02*sf_d_dot); 
-		//lead_s = check_car_s - self_car_s; // in meter
-		lead_s = sf_s - car_s; // in meter
-		lead_t = lead_s/car_v; // in seconds
-		//sf_lane = int(round(sf_d-2)/4);
-
-		//lanes[sf_lane].push_back(sf_s);
-		//lanes[sf_lane].push_back(lead_t);
-	
-	
-	
-		for (int i =0; i < 3; i++){
-	
-		
-			if (sf_d < (2+4*i+2) && sf_d > (2+4*i-2)) {
-				//lanes[i].push_back(sf_s);
-				lanes[i].push_back(lead_t);
-			}
-		}
-	
-	}
-
-	// find closest car, and open lanes
-	for (int i =0; i < lanes.size(); i++){
-		cout << "lane"<<i<<": ";
-		double closest_car = 9999;
-		for (int j =0; j < lanes[i].size(); j++){
-			//cout <<lanes[i][j]<<", ";
-			if( abs(lanes[i][j])<closest_car){
-				closest_car = abs(lanes[i][j]);
-			}
-		}
-		cout <<"closest car" << closest_car<< ", "; 
-		if(closest_car > following_gap){
-			cout<<"lane open"<<endl;
-			//left_lane_clear = false;
-			//available_lane.push_back(i);
-			target_d = 2+4*i;
-			
-			target_s_dot = car_v;
-			target_t = closest_car*0.9;
-			target_s = car_s + car_v*target_t;
-
-			results.push_back(target_s);
-			results.push_back(target_s_dot);
-			results.push_back(0);
-			results.push_back(target_d);
-			results.push_back(0); // target_d_dot
-			results.push_back(0); // target_d_d_dot
-			results.push_back(target_t);
-			//return results;
-			
-		} else{
-			cout << "too close, keep lane " << endl;
-			too_close = true;
-			target_d = 2+4*my_lane;
-			target_s_dot = car_v*0.6; //slow down
-			target_t = closest_car*0.8;
-			target_s = car_s + car_v*target_t-15; 
-
-
-			results.push_back(target_s);
-			results.push_back(target_s_dot);
-			results.push_back(0);
-			results.push_back(target_d);
-			results.push_back(0); // target_d_dot
-			results.push_back(0); // target_d_d_dot
-			results.push_back(target_t);
-			return results;
-		}
-	}
-	return results;
-}	
-*/
-/*
 // Transform from Cartesian x,y coordinates to Frenet s,d coordinates
 vector<double> getFrenet(double x, double y, double theta, vector<double> maps_x, vector<double> maps_y, vector<double> maps_s)
 {
@@ -505,7 +469,7 @@ vector<double> getFrenet(double x, double y, double theta, vector<double> maps_x
 	frenet_s += distance(0,0,proj_x,proj_y);
 	return {frenet_s,frenet_d};
 }
-*/
+
 
 
 
