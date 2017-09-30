@@ -11,6 +11,24 @@ The ego car is equiped with sensor fusion unit which will provide nesscery infor
 I basicly divided the problem into: road and map related problems, sensor fusion related, decision making, and smooth path. 
 
 ### Highway mapping
+The provided 181 waypoints are not enough to map a smooth trajectory that can stay in the middle of the three lanes all the time. They are represent the middle of the double yellow line. In this project, we are start using Frenet s,d coordinates system. we need to a good base to transform global coordinates to Frenet or verse vise.  
+I decided to make high resolution waypoints using spline tools.    
+```
+vector<double> getHD(vector<double> pts_x, vector<double> pts_y, 
+                                  double interval, int output_size) {
+    // X needs be sorted
+    tk::spline s;
+    s.set_points(pts_x,pts_y); 
+    vector<double> output;
+    for (int i = 0; i < output_size; i++) {
+        output.push_back(s(pts_x[0] + i * interval));
+    }
+    return output;
+}
+```
+Using the rough x, y points to fit the spline tool, which will create a smooth function. The distance between first x to last x is made up by interval times by number of intervals. Because this track is a loop, a small section between first point to the last point will connect again, and it is left out in low resulation. Due to the imprefect waypoint recording from udacity, skip the last waypoint actually solved the problem. Otherwise, the route will ends up with a s shape at the overlap section. 
+
+I set the waypoint resolution to 0.5 meter. All waypoint calculation is at beginning, and only run once. It does not affect the performance at all.  
 
 ### Sensor Fusion
 
