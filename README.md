@@ -11,7 +11,7 @@ The ego car is equiped with sensor fusion unit which will provide nesscery infor
 I basicly divided the problem into: road and map related problems, sensor fusion related, decision making, and smooth path. 
 
 ### Highway mapping
-The provided 181 waypoints are not enough to map a smooth trajectory that can stay in the middle of the three lanes all the time. They are represent the middle of the double yellow line. In this project, we are start using Frenet s,d coordinates system. we need to a good base to transform global coordinates to Frenet or verse vise.  
+The provided 181 waypoints are not enough to map a smooth trajectory that can stay in the middle of the three lanes all the time. They are represent the middle of the double yellow line. In this project, we are using Frenet s,d coordinates system. Therefore, we need to a good base to transform global coordinates to Frenet or verse vise.  
 I decided to make high resolution waypoints using spline tools.    
 ```
 vector<double> getHD(vector<double> pts_x, vector<double> pts_y, 
@@ -30,7 +30,26 @@ Using the rough x, y points to fit the spline tool, which will create a smooth f
 
 I set the waypoint resolution to 0.5 meter. All waypoint calculation is at beginning, and only run once. It does not affect the performance at all.  
 
-### Sensor Fusion
+### Sensor Fusion Data Processing
+
+Sensor fusion is the eyes of the self-driving car. It shows 12 cars in range and sameside of the highway. We are managed to get some useful informations from it, such as prediction of other cars, lane clearance( nearest front car, nearest rear car, front car speed), and feed in to decision making cost function. 
+
+The prediction has two parts: One part is assume all cars run on constant velocity based on last observation. Another part is predictions are not start at time zero, we need to prodict all car's movements start at the end time in ego car's previous_path.     
+```
+    int path_size = previous_path_x.size();
+    
+    if(path_size <2){
+		    ref_start_time = 0;
+		    ref_s = s_;
+		    ref_d = d_;
+		} else {
+		    ref_start_time = path_size*DELTA_T;
+		    ref_s = end_path_s;
+		    ref_d = end_path_d;
+		}
+```
+
+
 
 ### Decision making
 
