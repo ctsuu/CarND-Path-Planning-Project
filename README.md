@@ -34,7 +34,7 @@ I set the waypoint resolution to 0.5 meter. All waypoint calculation is at begin
 
 Sensor fusion is the eyes of the self-driving car. It shows 12 cars in range and sameside of the highway. We are managed to get some useful informations from it, such as prediction of other cars, lane clearance( nearest front car, nearest rear car, front car speed), and feed in to decision making cost function. 
 
-The prediction has two parts: One part is assume all cars run on constant velocity based on last observation. Another part is predictions are not start at time zero, we need to prodict all car's movements start at the end time in ego car's previous_path.     
+The prediction has two parts: One part is assume all cars run on constant velocity based on last observation. Another part is predictions are not always start at time zero, once the ego car is moving, we need to prodict all car's movements start at the end time in ego car's previous_path.     
 ```
     int path_size = previous_path_x.size();
     
@@ -49,9 +49,33 @@ The prediction has two parts: One part is assume all cars run on constant veloci
 		}
 ```
 
+The second use of sensor fusion is to check the clearance for each lane, find the closest front car distance and speed, also the closest rear car distance. The key is the check speed.
+```
+check_speed = sqrt((sensor_fusion)[i][3] * (sensor_fusion)[i][3] +
+                            (sensor_fusion)[i][4] * (sensor_fusion)[i][4]);
+check_speed = max(check_speed, 13.0);			    
+```
+The speed info will feed into the speed controller to drive the car. 
 
+The third use of sensor fusion is the decision making module. I will explain it in decision making section.  
 
 ### Decision making
+
+I have tried many options to determine which lane is the best lane to proceed.  
+There are basicly two groups of approach. One is to produce many possible trajectories, than check which trajectory is the best one, then use that trajectory. Another approach is to find which lane has less traffic, and higer speed, then follow the lane. 
+
+Since I can get accurcy speed of the target car, and PD controller to follow that speed, I am favority to the second approach. There is an extra trick in the check clearance function:
+```
+  if (front_min > 50){
+    check_speed = SPEED_LIMIT;
+  }
+```
+If the lane is quite open, go to the speed limit, to catch up the traffic. 
+
+There are three layers of detection for lane states, is the lane open or I have to do keep lane operation?   
+
+
+
 
 ### Regen the trajectory
 
