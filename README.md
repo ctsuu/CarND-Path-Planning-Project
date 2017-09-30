@@ -74,7 +74,9 @@ If the lane is quite open, go to the speed limit, to catch up the traffic.
 
 There are three layers of detection for lane states, is the lane open or I have to do keep lane operation?   
 
+The first layer is the getLaneState() function, it will take the sensor fusion data, and ego car current state, returns each lane weither it is open or keep lane. 
 
+The second layer is the findBestLane() function, it will take the sensor fusion data, based on the distance to the ego car and speed of the car,  
 
 
 ### Regen the trajectory
