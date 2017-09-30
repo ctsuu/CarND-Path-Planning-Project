@@ -1,5 +1,45 @@
 # CarND-Path-Planning-Project
 Self-Driving Car Engineer Nanodegree Program
+
+This is by far the most difficulte project in the program. Here is the story how I solve it. 
+
+### Project Overview
+This is a multi-agent problem. We are dealing with 12 other cars on the road, and they are not nice drivers. The highway is a 6946 meters long 3 lane highway loop. The project requires the self-driving car driving in very smooth manner. Accelection and jerk are less than 10 m/s^2 and 50 m/s^3. Within 4.32 miles, one full loop, no more than 3 second of the three lanes, no speeding, no collision. 
+
+The ego car is equiped with sensor fusion unit which will provide nesscery information for all other cars. A low resolution rough waypoints is about 30 meter apart between two next points. The lane is standard 4 meter wide. Don't cross the double yellow line or off the road. 
+
+I basicly divided the problem into: road and map related problems, sensor fusion related, decision making, and smooth path. 
+
+### Highway mapping
+
+### Sensor Fusion
+
+### Decision making
+
+### Regen the trajectory
+
+### Results
+
+### Reflection
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
    
 ### Simulator. You can download the Term3 Simulator BETA which contains the Path Planning Project from the [releases tab](https://github.com/udacity/self-driving-car-sim/releases).
 
