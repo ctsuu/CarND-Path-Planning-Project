@@ -74,12 +74,93 @@ If the lane is quite open, go to the speed limit, to catch up the traffic.
 
 There are three layers of detection for lane states, is the lane open or I have to do keep lane operation?   
 
-The first layer is the getLaneState() function, it will take the sensor fusion data, and ego car current state, returns each lane weither it is open or keep lane. 
+The first layer is the getLaneState() function. It will take the sensor fusion data, and ego car current state, returns each lane weither it is open or keep lane. The function will take the ego car current speed into account:
+```
+	lead_t = lead_s/car_v; // in seconds
+```
+All calculation is based on time to reach the last waypoint. 
 
-The second layer is the findBestLane() function, it will take the sensor fusion data, based on the distance to the ego car and speed of the car,  
+The second layer is the findBestLane() function. It will take the sensor fusion data, based on the distance to the ego car and speed of the car, the cost function is in favour to less traffice and faster speed lane. Also, there are some spots on lane 2 will cause "out of lane", when I initiated three lanes, the priority will be in order of lane 1, lane 0 and lane 2.    
+```
+  vector<double> lane_cost = {0.000001, 0, 0.00001};
 
+  for (int i = 0; i < (sensor_fusion).size(); i++) {
+    dist = (sensor_fusion)[i][5] - car_s;
+    lane = Utils::getLaneNumberForD((sensor_fusion)[i][6]);
+    speed = sqrt((sensor_fusion)[i][3] * (sensor_fusion)[i][3] +
+                 (sensor_fusion)[i][4] * (sensor_fusion)[i][4]);
+
+    if (lane == -1) continue;
+
+    if (dist > 0) {
+      lane_cost[lane] += distance_time_cost(dist, speed);
+    } else {
+      dist = abs(dist);
+      if (dist <= FOLLOW_DISTANCE) {
+        dist = FOLLOW_DISTANCE;
+        lane_cost[lane] += distance_time_cost(dist, speed);
+      }
+    }
+  }
+
+```
+
+The third layer is the execute() function. 
+```
+int Vehicle::execute(int best_lane, int c_lane, vector<vector<double >> sensor_fusion){
+    if( this->lane_follow ){
+	// find open lane, update states
+	for( int i = 0; i<open_lanes.size(); i++){
+ 	  string st = open_lanes[i];
+	  
+    	  if(st.compare("KL,") == 0 && (i==(this->current_lane-1)) )
+	    this->left_lane_open = false;
+	  if(st.compare("OPEN,") == 0 && (i==(this->current_lane-1)))
+	    this->left_lane_open = true;
+
+	  if(st.compare("KL,") == 0 && (i==(this->current_lane+1)) )
+	    this->right_lane_open = false;
+	  if(st.compare("OPEN,") == 0 && (i==(this->current_lane+1)))
+	    this->right_lane_open = true;
+	}
+
+	if (abs(c_lane - best_lane) != 2) {
+    	  if (this->FL_clear && this->RL_clear && best_lane < c_lane && 
+	      this->left_lane_open){
+            c_lane = best_lane;
+    	  } else if (this->FR_clear && this->RR_clear && best_lane > c_lane && 
+		     this->right_lane_open){
+            c_lane = best_lane;
+          }
+        } else {
+  	  // check middle lane clearance
+    	  vector<double> middle_lane = checkClearance(sensor_fusion, this->s, 1);
+
+          if (middle_lane[0] >= FOLLOW_DISTANCE && middle_lane[1] >= FOLLOW_DISTANCE+4) {
+	    if(c_lane = 2 && left_lane_open){
+              c_lane = 1;
+	      this->lane_follow = false;
+              cout << "change from right lane to middle lane \n";
+	    } else if(c_lane = 0 && right_lane_open){
+	      c_lane = 1;
+	      this->lane_follow = false;
+              cout << "change from left lane to middle lane \n";
+	    }
+          } else {
+            cout << "no double shift \n";
+            this->lane_follow = true;
+          }
+	}
+  }
+  return c_lane;
+}
+```
+If the car is in the middle lane, check both side and change lane when the target lane is clear. 
+If the car is in lane 0 or lane 2, check the middle lane again, and change lane if it is clear. This also prevent the car cross two lanes at once. The car have to wait for next circle to cross another lane. 
 
 ### Regen the trajectory
+
+
 
 ### Results
 
