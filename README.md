@@ -2,13 +2,16 @@
 Self-Driving Car Engineer Nanodegree Program
 
 This is by far the most difficulte project in the program. Here is the story how I solve it. 
+<p align="center">
+ <img src="./Screenshot from 2017-09-29 19-24-20.png" width="720">
+</p>
 
 ### Project Overview
-This is a multi-agent problem. We are dealing with 12 other cars on the road, and they are not nice drivers. The highway is a 6946 meters long 3 lane highway loop. The project requires the self-driving car driving in very smooth manner. Accelection and jerk are less than 10 m/s^2 and 50 m/s^3. Within 4.32 miles, one full loop, no more than 3 second of the three lanes, no speeding, no collision. 
+This is a multi-agent problem. We are dealing with 12 other cars on the road, and they are not nice drivers. The highway is a 6946 meters long 3 lane highway loop. The project requires the self-driving car driving in very smooth manner. Accelection and jerk are less than 10 m/s^2 and 50 m/s^3. Within 4.32 miles, one full loop, no more than 3 second off the three lanes, no speeding, no collision. 
 
 The ego car is equiped with sensor fusion unit which will provide nesscery information for all other cars. A low resolution rough waypoints is about 30 meter apart between two next points. The lane is standard 4 meter wide. Don't cross the double yellow line or off the road. 
 
-I basicly divided the problem into: road and map related problems, sensor fusion related, decision making, and smooth path. 
+I break down the scope of the problem into four parts: road and map related problems, sensor fusion related, decision making, and smooth path. 
 
 ### Highway mapping
 The provided 181 waypoints are not enough to map a smooth trajectory that can stay in the middle of the three lanes all the time. They are represent the middle of the double yellow line. In this project, we are using Frenet s,d coordinates system. Therefore, we need to a good base to transform global coordinates to Frenet or verse vise.  
@@ -59,7 +62,7 @@ The speed info will feed into the speed controller to drive the car.
 
 The third use of sensor fusion is the decision making module. I will explain it in decision making section.  
 
-### Decision making
+### Decision making (Path Planning)
 
 I have tried many options to determine which lane is the best lane to proceed.  
 There are basicly two groups of approach. One is to produce many possible trajectories, than check which trajectory is the best one, then use that trajectory. Another approach is to find which lane has less traffic, and higer speed, then follow the lane. 
