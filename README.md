@@ -158,33 +158,40 @@ int Vehicle::execute(int best_lane, int c_lane, vector<vector<double >> sensor_f
 If the car is in the middle lane, check both side and change lane when the target lane is clear. 
 If the car is in lane 0 or lane 2, check the middle lane again, and change lane if it is clear. This also prevent the car cross two lanes at once. The car have to wait for next circle to cross another lane. 
 
-### Regen the trajectory
+### Re-generate the trajectory
 
+In the beginning, I was trying to use JMT method to generate the final path. But I am not able to get correct coeffices to meet the requirements such as max speed, accelection and jerk all together. 
 
+Therefore, I am using Udacity method to get trajectory under control. 
 
 ### Results
 
+As result, The car can drive at least 4.32 miles, a full loop. Best record is 14.84 miles. It can change lanes in safety manner. The current model is well behavioured in middle range, all cars around 50-100 meter range. The car can stay in the same lane very paitently. Once the opportunity comes, it will complete the lane change under 2 seconds. And it will not do double shift lane in one shot.  
+
+The car can run as fast as 49.5 MPH. The car can pass other vehicle from either side, but most of the time it will pass from left side. Pass from right is not legal sometimes. 
+
 ### Reflection
 
+The multi-agent problem is hard. Most incidents are hard to repeat. Such as other car cut off in front of the self-driving car. The sensor fusion module has hard time to detect or predict it. It course a lot of problems. 
+
+Sensor fusion speed detection is very useful. I am curious about how they can get the absolute speed. 
+
+I found the Frenet s,d coordinates system is very useful. I am curious about how to use it to handle exit and merge on highway. Also how they can handle intersections. 
+
+The comfort requirement such as max accelection and jerk, total accelection and jerk is ok with udacity method, but it is hard for JMT method to make it work. For a real car, the actual weight and power of the car will be easer to smooth those number out. 
+
+### Reference
+
+The main structure of the project is based on Udacity project walkthrough. 
+There are many other useful ideas and best practices on c++ are credited to the following links: 
+https://github.com/ortizjuan2/CarND-Path-Planning
+https://github.com/jeremy-shannon/CarND-Path-Planning-Project
+https://github.com/diyjac/SDC-T3-P1
+https://github.com/jonlee317/sdcPathPlanning
+https://github.com/WolfgangSteiner/CarND-Path-Planning-Project
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-   
 ### Simulator. You can download the Term3 Simulator BETA which contains the Path Planning Project from the [releases tab](https://github.com/udacity/self-driving-car-sim/releases).
 
 In this project your goal is to safely navigate around a virtual highway with other traffic that is driving +-10 MPH of the 50 MPH speed limit. You will be provided the car's localization and sensor fusion data, there is also a sparse map list of waypoints around the highway. The car should try to go as close as possible to the 50 MPH speed limit, which means passing slower traffic when possible, note that other cars will try to change lanes too. The car should avoid hitting other cars at all cost as well as driving inside of the marked road lanes at all times, unless going from one lane to another. The car should be able to make one complete loop around the 6946m highway. Since the car is trying to go 50 MPH, it should take a little over 5 minutes to complete 1 loop. Also the car should not experience total acceleration over 10 m/s^2 and jerk that is greater than 50 m/s^3.
