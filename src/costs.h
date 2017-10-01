@@ -177,42 +177,6 @@ double nearest_approach_to_any_vehicle_in_lane(vector<double> s_traj, vector<dou
 }
 
 
-double Long_Safety_Cost(int lane, double start_time, vector<double> start_state, vector<double> coeffs, map<int,vector<vector<double>>> predictions) {
-  // Determines the nearest the vehicle comes to any other vehicle throughout a trajectory
-  double closest = 999999, cost, dist;
-  int closest_idx;
-  for (auto prediction : predictions) {
-    vector<vector<double>> pred_traj = prediction.second;
-    vector<double> obs_s = pred_traj[4];
-    double pred_d = pred_traj[5][0];
-    vector<double> timeline = pred_traj[6];
-    vector<double> sdc_state = state_in(start_state, start_time);
-    vector<double> sdc_s, s_diff;
-    // check the obs in this lane only
-    if(pred_d <4*(lane+1) && pred_d > 4*lane){
-      //cout << "what is the predicted s value from reference time up to t : "<< prediction.first<< " : "<<endl;
-      for (auto t: timeline){
-	//cout << t << ", ";
-        sdc_s.push_back(eval_at(coeffs, start_time+t));
-      }
-      for (int i = 0; i < sdc_s.size(); ++i){
-	double diff_s = (obs_s[i]-sdc_s[i]);
-	if(abs(diff_s) < closest){
-	  closest = abs(diff_s);
-	  closest_idx = prediction.first;
-	  cost = 1-1.0/(1+exp(-closest));
-          dist = diff_s;
-	}
-      }
-      //cout<<1/cost<< endl;
-    }
-    //cout<< "closest vid "<< closest_idx << " distance "<<  dist<<endl;
-  }
-
-  //cout<< "closest vid "<< closest_idx << " distance_cost "<<  cost<<" in lane"<<lane <<endl;
-  return cost;
-}
-
 
 
 vector<double> velocities_for_trajectory(vector<double> traj) {
@@ -491,42 +455,91 @@ double open_speed_cost(double speed) {
   return open_speed(speed);
 }
 
-
-
-
-double calculate_total_cost(vector<double> s_traj, vector<double> d_traj, map<int,vector<vector<double>>> predictions) {
-
-  double total_cost = 0;
-  double col = collision_cost(s_traj, d_traj, predictions) * COLLISION_COST_WEIGHT;
-  double buf = buffer_cost(s_traj, d_traj, predictions) * BUFFER_COST_WEIGHT;
-  double ilb = in_lane_buffer_cost(s_traj, d_traj, predictions) * IN_LANE_BUFFER_COST_WEIGHT;
-  double eff = efficiency_cost(s_traj) * EFFICIENCY_COST_WEIGHT;
-  double nml = not_middle_lane_cost(d_traj) * NOT_MIDDLE_LANE_COST_WEIGHT;
-  //double esl = exceeds_speed_limit_cost(s_traj) * SPEED_LIMIT_COST_WEIGHT;
-  //double mas = max_accel_cost(s_traj) * MAX_ACCEL_COST_WEIGHT;
-  //double aas = avg_accel_cost(s_traj) * AVG_ACCEL_COST_WEIGHT;
-  //double mad = max_accel_cost(d_traj) * MAX_ACCEL_COST_WEIGHT;
-  //double aad = avg_accel_cost(d_traj) * AVG_ACCEL_COST_WEIGHT;
-  //double mjs = max_jerk_cost(s_traj) * MAX_JERK_COST_WEIGHT;
-  //double ajs = avg_jerk_cost(s_traj) * AVG_JERK_COST_WEIGHT;
-  //double mjd = max_jerk_cost(d_traj) * MAX_JERK_COST_WEIGHT;
-  //double ajd = avg_jerk_cost(d_traj) * AVG_JERK_COST_WEIGHT;
-  //double tdiff = time_diff_cost(target_time, actual_time) * TIME_DIFF_COST_WEIGHT;
-  //double strajd = traj_diff_cost(s_traj, target_s) * TRAJ_DIFF_COST_WEIGHT;
-  //double dtrajd = traj_diff_cost(d_traj, target_d) * TRAJ_DIFF_COST_WEIGHT;
-
-  total_cost += col + buf + ilb + eff + nml;// + esl + mas + aas + mad + aad + mjs + ajs + mjd + ajd;
-
-  // // DEBUG
-  // cout << "costs - col: " << col << ", buf: " << buf << ", ilb: " << ilb << ", eff: " << eff << ", nml: " << nml; 
-  // //cout << ", " << esl 
-  // //cout << ", " << mas << ", " << aas << ", " << mad << ", " << aad;
-  // //cout << ", " << mjs << ", " << ajs << ", " << mjd << ", " << ajd;
-  // cout << "  ** ";
-  // //cout << endl;
-  // //cout << "total cost: " << total_cost << endl;
-
-  return total_cost;
+double distance_time_cost(double dist, double speed){
+  // favor to larger following distance and travel speed
+  double cost = 1.0 / (dist * dist) * 1.0 / speed ;
+  return cost;
 }
+
+
+
+double Long_Safety_Cost(int lane, double start_time, vector<double> start_state, vector<double> coeffs, map<int,vector<vector<double>>> predictions) {
+  // Determines the nearest the vehicle comes to any other vehicle throughout a trajectory
+  double closest = 999999, cost, dist;
+  int closest_idx;
+  for (auto prediction : predictions) {
+    vector<vector<double>> pred_traj = prediction.second;
+    vector<double> obs_s = pred_traj[0];
+    double pred_d = pred_traj[1][0];
+    vector<double> timeline = pred_traj[2];
+    vector<double> sdc_state = state_in(start_state, start_time);
+    vector<double> sdc_s, s_diff;
+    // check the obs in this lane only
+    if(pred_d <4*(lane+1) && pred_d > 4*lane){
+      //cout << "what is the predicted s value from reference time up to t : "<< prediction.first<< " : "<<endl;
+      for (auto t: timeline){
+	//cout << t << ", ";
+        sdc_s.push_back(eval_at(coeffs, start_time+t));
+      }
+      for (int i = 0; i < sdc_s.size(); ++i){
+	double diff_s = (obs_s[i]-sdc_s[i]);
+	if(abs(diff_s) < closest){
+	  closest = abs(diff_s);
+	  closest_idx = prediction.first;
+	  cost = 1-1.0/(1+exp(-closest));
+          dist = diff_s;
+	}
+      }
+      //cout<< cost<< endl;
+    }
+    //cout<< "closest vid "<< closest_idx << " distance "<<  dist<<endl;
+  }
+
+  //cout<< "closest vid "<< closest_idx << " distance_cost "<<  cost<<" in lane"<<lane <<endl;
+  return cost;
+}
+
+
+
+
+double Lat_Safety_Cost(int lane, double start_time, vector<double> start_state, vector<double> coeffs, map<int,vector<vector<double>>> predictions) {
+  // Determines the nearest the vehicle comes to any other vehicle throughout a trajectory
+  double closest = 999999, cost, dist;
+  int closest_idx;
+  for (auto prediction : predictions) {
+    vector<vector<double>> pred_traj = prediction.second;
+    vector<double> obs_d = pred_traj[4];
+    double pred_d = pred_traj[5][0];
+    vector<double> timeline = pred_traj[6];
+    vector<double> sdc_state = state_in(start_state, start_time);
+    vector<double> sdc_d, d_diff;
+    // check the obs in this lane only
+    if(pred_d <4*(lane+1) && pred_d > 4*lane){
+      //cout << "what is the predicted s value from reference time up to t : "<< prediction.first<< " : "<<endl;
+      for (auto t: timeline){
+	//cout << t << ", ";
+        sdc_d.push_back(eval_at(coeffs, start_time+t));
+      }
+      for (int i = 0; i < sdc_d.size(); ++i){
+	double diff_d = (pred_d-sdc_d[i]);
+	if(abs(diff_d) < closest){
+	  closest = abs(diff_d);
+	  closest_idx = prediction.first;
+	  cost = 1-1.0/(1+exp(-closest));
+          dist = diff_d;
+	}
+      }
+      //cout<< cost<< endl;
+    }
+    //cout<< "closest vid "<< closest_idx << " distance "<<  dist<<endl;
+  }
+
+  //cout<< "closest vid "<< closest_idx << " distance_cost "<<  cost<<" in lane"<<lane <<endl;
+  return cost;
+}
+
+
+
+
 
 #endif
