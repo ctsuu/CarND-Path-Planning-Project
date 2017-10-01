@@ -27,12 +27,11 @@ int Utils::getLaneNumberForD(double d){
 }
 
 
-double Utils::getDForLaneNumber(int aLaneNumber){
-  // Define the rightmost lane slightly to the left in order to avoid
-  // "out of lane" simulator bugs due coordinate warping in curves.
-  static std::vector<double> sDVector = {2.0, 6.0, 9.75};
-  assert(aLaneNumber >= 0 && aLaneNumber <= 2);
-  return sDVector[aLaneNumber];
+double Utils::getDForLaneNumber(int Lane){
+
+  std::vector<double> sDVector = {2.0, 6.0, 9.75};
+  assert(Lane >= 0 && Lane <= 2);
+  return sDVector[Lane];
 }
 
 

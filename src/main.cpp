@@ -321,7 +321,7 @@ int main() {
 		// last two points of coarse trajectory, use target_d and current s + 30,60
 		double target_s1 = s_ + 30;
 		double target_d1 = Utils::getDForLaneNumber(c_lane);
-                this_thread::sleep_for(chrono::milliseconds(150));
+                this_thread::sleep_for(chrono::milliseconds(300));
 		vector<double> target_xy1 = getXY(target_s1, target_d1, hd_s, hd_x, hd_y);
 		m_ptss.push_back(target_s1);
 		m_ptsx.push_back(target_xy1[0]);
@@ -433,7 +433,7 @@ int main() {
 
           	auto msg = "42[\"control\","+ msgJson.dump()+"]";
 
-          	this_thread::sleep_for(chrono::milliseconds(50));
+          	//this_thread::sleep_for(chrono::milliseconds(50));
           	ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
                 counter += 1;
         }

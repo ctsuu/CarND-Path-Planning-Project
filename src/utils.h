@@ -13,7 +13,7 @@ namespace Utils
   double rad2deg(double x);
   double getDistance(double x1, double y1, double x2, double y2);
   int getLaneNumberForD(double d);
-  double getDForLaneNumber(int aLaneNumber);
+  double getDForLaneNumber(int Lane);
 
 }
 

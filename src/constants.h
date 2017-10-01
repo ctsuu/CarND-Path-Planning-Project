@@ -27,7 +27,7 @@
 
 #define VEHICLE_RADIUS 2.25              // meters
 #define FOLLOW_DISTANCE 12.0              // distance to keep behind leading cars
-#define FOLLOWING_GAP 1.8		 // front safety distance, present in sec
+#define FOLLOWING_GAP 1.2		 // front safety distance, present in sec
 
 // comfort rule
 #define POWER 0.99                       // 99% output

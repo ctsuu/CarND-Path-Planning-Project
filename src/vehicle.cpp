@@ -807,6 +807,8 @@ int Vehicle::execute(int best_lane, int c_lane, vector<vector<double >> sensor_f
           } else {
             cout << "no double shift \n";
 	    this->lane_follow = true;
+	    this->left_lane_open = false;
+            this->right_lane_open = false;
           }
 	}
   }
