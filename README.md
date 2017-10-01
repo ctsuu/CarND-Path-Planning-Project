@@ -173,6 +173,12 @@ As result, The car can drive at least 4.32 miles, a full loop. Best record is 14
 
 The car can run as fast as 49.5 MPH. The car can pass other vehicle from either side, but most of the time it will pass from left side. Pass from right is not legal sometimes. 
 
+One more challenge I did is to add 300ms delay in the main loop: The car still able to run a full loop plus. 
+```
+this_thread::sleep_for(chrono::milliseconds(300));
+```
+The video is here https://youtu.be/pEXZiTMQIJ0.
+
 ### Reflection
 
 The multi-agent problem is hard. Most incidents are hard to repeat. Such as other car cut off in front of the self-driving car. The sensor fusion module has hard time to detect or predict it. It course a lot of problems. 
@@ -182,6 +188,8 @@ Sensor fusion speed detection is very useful. I am curious about how they can ge
 I found the Frenet s,d coordinates system is very useful. I am curious about how to use it to handle exit and merge on highway. Also how they can handle intersections. 
 
 The comfort requirement such as max accelection and jerk, total accelection and jerk is ok with udacity method, but it is hard for JMT method to make it work. For a real car, the actual weight and power of the car will be easer to smooth those number out. 
+
+The delay test also remind me that the plan planner schedule, it does not need run full time. I think 3-10 Hz update rate is good enough. 
 
 ### Reference
 
